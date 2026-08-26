@@ -1,0 +1,35 @@
+{
+  "name": "@tw-erp/api",
+  "version": "0.0.1",
+  "license": "LGPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts",
+    "./seed": "./src/services/seed.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "node --experimental-strip-types src/server.ts",
+    "dev:memory": "node --experimental-strip-types scripts/dev-memory.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@hono/zod-validator": "^0.7.0",
+    "@tw-erp/core": "workspace:*",
+    "@tw-erp/db": "workspace:*",
+    "@tw-erp/einvoice": "workspace:*",
+    "@tw-erp/vat": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.6.0",
+    "pg": "^8.13.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

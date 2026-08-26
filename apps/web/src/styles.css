@@ -1,0 +1,641 @@
+/* tw-erp 設計語言：Apple HIG 取向——清晰、留白、層次；8pt 間距、單一強調色、柔和圓角 */
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --text-2: #6e6e73;
+  --text-3: #86868b;
+  --line: #e8e8ed;
+  --line-strong: #d2d2d7;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-tint: rgba(0, 113, 227, 0.09);
+  --green: #1b7d3e;
+  --green-tint: #e6f4ea;
+  --red: #d70015;
+  --red-tint: #fdecec;
+  --amber: #9a6b00;
+  --amber-tint: #fff4d6;
+  --radius: 12px;
+  --radius-s: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  /* 互動層（hover/按下/填色）走 token，深色模式才有得換 */
+  --hover: rgba(0, 0, 0, 0.05);
+  --hover-strong: rgba(0, 0, 0, 0.1);
+  --press: rgba(0, 0, 0, 0.14);
+  --fill: rgba(0, 0, 0, 0.06);
+  --row-hover: rgba(0, 0, 0, 0.025);
+  --tooltip-bg: #1d1d1f;
+  --tooltip-text: #f5f5f7;
+}
+
+/* 深色 token 有兩個入口：system 偏好走 media query（但被手動選淺色時讓路），
+   手動選深色走 data-theme。theme.ts 負責維護 <html data-theme>；兩份內容由同一來源生成 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161617;
+    --surface: #1f1f21;
+    --text: #f5f5f7;
+    --text-2: #a1a1a6;
+    --text-3: #86868b;
+    --line: #3a3a3c;
+    --line-strong: #48484a;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --accent-tint: rgba(10, 132, 255, 0.18);
+    --green: #4cc76a;
+    --green-tint: rgba(48, 209, 88, 0.14);
+    --red: #ff6961;
+    --red-tint: rgba(255, 69, 58, 0.14);
+    --amber: #d9a53d;
+    --amber-tint: rgba(217, 165, 61, 0.14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.35);
+    --hover: rgba(255, 255, 255, 0.07);
+    --hover-strong: rgba(255, 255, 255, 0.12);
+    --press: rgba(255, 255, 255, 0.16);
+    --fill: rgba(255, 255, 255, 0.09);
+    --row-hover: rgba(255, 255, 255, 0.035);
+    --tooltip-bg: #f5f5f7;
+    --tooltip-text: #1d1d1f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161617;
+  --surface: #1f1f21;
+  --text: #f5f5f7;
+  --text-2: #a1a1a6;
+  --text-3: #86868b;
+  --line: #3a3a3c;
+  --line-strong: #48484a;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-tint: rgba(10, 132, 255, 0.18);
+  --green: #4cc76a;
+  --green-tint: rgba(48, 209, 88, 0.14);
+  --red: #ff6961;
+  --red-tint: rgba(255, 69, 58, 0.14);
+  --amber: #d9a53d;
+  --amber-tint: rgba(217, 165, 61, 0.14);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --hover: rgba(255, 255, 255, 0.07);
+  --hover-strong: rgba(255, 255, 255, 0.12);
+  --press: rgba(255, 255, 255, 0.16);
+  --fill: rgba(255, 255, 255, 0.09);
+  --row-hover: rgba(255, 255, 255, 0.035);
+  --tooltip-bg: #f5f5f7;
+  --tooltip-text: #1d1d1f;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro TC", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.layout { display: flex; min-height: 100vh; }
+
+/* ---- 側欄：淺色、分組、膠囊高亮 ---- */
+.sidebar {
+  width: 216px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  padding: 20px 12px 16px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  /* 收合的軟過渡：easeOutQuart 形狀——起步快、落定緩，寬度變化不顯得機械 */
+  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), padding 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.sidebar h1 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 0 10px 14px;
+  margin: 0;
+}
+.sidebar .group {
+  transition: opacity 0.15s ease;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 14px 10px 4px;
+}
+.sidebar button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text);
+  text-align: left;
+  font-size: 0.84375rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sidebar button:hover { background: var(--hover); }
+.sidebar button.active { background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+.sidebar button { display: flex; align-items: center; gap: 9px; }
+.sidebar .nav-icon { flex-shrink: 0; width: 20px; display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+.sidebar button.active .nav-icon { color: var(--accent); }
+/* 文字不用 display:none 硬切——opacity＋位移「收進」側欄（Gemini 建議的正解） */
+.sidebar .nav-label {
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* ---- 側欄頭：品牌章（收合時只剩它）＋淡出的字標 ---- */
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 6px 12px;
+  overflow: hidden;
+  /* 側欄是 flex-column＋100vh：導覽項一多，沒設 flex-shrink:0 的 header 會被壓扁到只剩
+     padding、logo 整顆被 overflow:hidden 裁掉（2026-08-13 實測 12px）。防壓扁是必要品 */
+  flex-shrink: 0;
+}
+.sidebar-head h1 { padding: 0; }
+.brand-badge {
+  /* E∞ 標誌（public/mark.png 寬版去背 PNG，深色用 mark-dark.png）；收合時側欄只剩它。
+     圖是 2.3:1 的寬形——用寬版尺寸，塞進方格會縮成一條 */
+  width: 44px;
+  height: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+.sidebar-head picture { flex-shrink: 0; display: flex; }
+.brand-name {
+  margin: 0;
+  padding: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* ---- 底部收合鈕（在使用者區塊上方，與導覽鈕同形） ---- */
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: auto;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+  font-size: 0.84375rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.collapse-btn:hover { background: var(--hover); }
+
+/* ---- 收合態（桌面）：圖示欄。label 淡出＋收攏，不是瞬間消失 ---- */
+.sidebar.collapsed { width: 64px; padding-left: 8px; padding-right: 8px; }
+.sidebar.collapsed .group { opacity: 0; height: 0; padding: 0; overflow: hidden; }
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .brand-name {
+  opacity: 0;
+  width: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+.sidebar.collapsed button { justify-content: center; padding: 9px 0; gap: 0; }
+.sidebar.collapsed .sidebar-head { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+.sidebar.collapsed .user-box { display: none; }
+.sidebar.collapsed .collapse-btn { justify-content: center; padding: 9px 0; gap: 0; }
+
+/* ---- 收合態的懸浮提示：fixed 定位（不被側欄的 overflow 裁掉），淡入＋滑入 ---- */
+.nav-tooltip {
+  position: fixed;
+  left: 72px;
+  transform: translateY(-50%);
+  z-index: 90;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  animation: tip-in 0.15s ease;
+}
+@keyframes tip-in {
+  from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+  to { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+
+/* ---- 內建助理側欄（agent Phase 1）---- */
+.agent-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 55;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.agent-fab:hover { background: var(--accent-hover); }
+.agent-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 55;
+  width: min(400px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--accent);
+}
+.agent-head span { color: var(--text); font-size: 0.875rem; }
+.agent-body { flex: 1; overflow-y: auto; padding: 12px; }
+.agent-empty { color: var(--text-2); font-size: 0.8125rem; line-height: 1.7; }
+.agent-msg { margin-bottom: 10px; display: flex; flex-direction: column; }
+.agent-msg.user { align-items: flex-end; }
+.agent-msg.assistant { align-items: flex-start; }
+.agent-bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.agent-msg.user .agent-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.agent-msg.assistant .agent-bubble { background: var(--fill); border-bottom-left-radius: 4px; }
+.agent-thinking { color: var(--text-3); }
+.agent-steps { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; max-width: 88%; }
+.agent-input { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.agent-input input { flex: 1; }
+
+/* ---- 手機開關與背板：桌面隱藏 ---- */
+.menu-fab {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+.nav-backdrop { display: none; }
+
+/* ---- 主內容與頁首 ---- */
+.main { flex: 1; padding: 28px 36px 48px; max-width: 1160px; }
+.page-header { margin-bottom: 20px; }
+.page-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.page-header .desc { color: var(--text-2); font-size: 0.875rem; max-width: 720px; }
+.main h2 { margin-top: 0; letter-spacing: -0.02em; }
+.main h3 { letter-spacing: -0.01em; }
+
+/* ---- 卡片 ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.card h3 { margin: 0 0 14px; font-size: 0.9375rem; font-weight: 600; }
+.card h4 { font-weight: 600; }
+
+/* ---- 表單 ---- */
+form.inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+label.field { display: flex; flex-direction: column; font-size: 0.75rem; font-weight: 500; color: var(--text-2); gap: 5px; }
+input, select {
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  font-size: 0.875rem;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.18);
+}
+input::placeholder { color: var(--text-3); }
+
+/* ---- 按鈕 ---- */
+button { font-family: inherit; }
+button.primary {
+  padding: 8px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 980px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+button.primary:hover { background: var(--accent-hover); }
+button.primary:active { transform: scale(0.98); }
+button.primary:disabled { opacity: 0.5; cursor: default; }
+button.small {
+  padding: 4px 12px;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 980px;
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+button.small:hover { background: var(--hover-strong); }
+/* pointer-down 即時回饋（Apple：反應在按下那一刻，不是放開）——所有按鈕一致 */
+button.small:active { background: var(--press); transform: scale(0.97); }
+.sidebar button:active { background: var(--hover-strong); }
+/* 鍵盤族的 focus 環：滑鼠點擊不出現（:focus-visible），與輸入框同一套視覺 */
+button:focus-visible, .sidebar button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.28);
+}
+
+/* ---- 表格：去格線、分隔線＋懸停 ---- */
+table { border-collapse: collapse; width: 100%; background: var(--surface); font-size: 0.84375rem; }
+th, td { border: none; border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { color: var(--text-3); font-weight: 500; font-size: 0.75rem; }
+tbody tr { transition: background 0.1s ease; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- 訊息與徽章 ---- */
+.error { color: var(--red); background: var(--red-tint); border: none; padding: 10px 14px; border-radius: var(--radius-s); margin: 12px 0; font-weight: 500; }
+/* 長頁面的頁級錯誤橫幅：表單在頁面下半、橫幅在頂端時，出錯了會完全看不到——黏住它。
+   毛玻璃材質：它浮在會捲動的內容上，半透明＋blur 讓下層內容還隱約可見（知道自己蓋住了什麼） */
+.sticky-alert {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--red-tint);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+.ok { color: var(--green); background: var(--green-tint); border: none; padding: 10px 14px; border-radius: var(--radius-s); margin: 12px 0; font-weight: 500; }
+/* 操作成功但有副作用要提醒（例：停用了還有餘額的科目）——不是錯誤，所以不能用紅色 */
+.notice { color: var(--amber); background: var(--amber-tint); border: none; padding: 10px 14px; border-radius: var(--radius-s); margin: 12px 0; font-weight: 500; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 980px; font-size: 0.75rem; font-weight: 500; background: var(--fill); color: var(--text-2); }
+.badge.issued { background: var(--green-tint); color: var(--green); }
+.badge.canceled { background: var(--red-tint); color: var(--red); }
+
+pre.xml {
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  padding: 14px;
+  border-radius: var(--radius-s);
+  overflow-x: auto;
+  font-size: 0.75rem;
+  max-height: 400px;
+}
+
+/* ---- 統計卡 ---- */
+.stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  min-width: 150px;
+  box-shadow: var(--shadow);
+}
+.stat .label { font-size: 0.75rem; color: var(--text-2); }
+.stat .value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ---- 零狀態與新手引導 ---- */
+.empty {
+  text-align: center;
+  padding: 36px 20px;
+  color: var(--text-2);
+}
+.empty .icon { font-size: 2.125rem; margin-bottom: 8px; }
+.empty .title { font-size: 0.9375rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.empty p { margin: 0 0 14px; font-size: 0.84375rem; }
+
+.checklist { list-style: none; margin: 0; padding: 0; }
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.checklist li:last-child { border-bottom: none; }
+.checklist .mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+  background: var(--fill);
+  color: var(--text-3);
+}
+.checklist li.done .mark { background: var(--green-tint); color: var(--green); }
+.checklist li.done .body { color: var(--text-3); text-decoration: line-through; }
+.checklist .body { flex: 1; }
+.checklist .body .t { font-weight: 500; }
+.checklist .body .d { font-size: 0.78125rem; color: var(--text-2); }
+
+/* ---- 對外文件列印（B5）：浮層預覽＋@media print 只印 .print-sheet ---- */
+.print-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  overflow: auto;
+  padding: 24px 0 48px;
+}
+.print-toolbar { text-align: center; margin-bottom: 14px; }
+.print-screen-note {
+  max-width: 640px;
+  margin: 10px auto 0;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: var(--radius-s);
+  padding: 8px 14px;
+  text-align: left;
+}
+.print-sheet {
+  background: #fff;
+  color: #000;
+  margin: 0 auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.print-sheet.a4 { width: 200mm; max-width: 94vw; padding: 14mm 16mm; }
+.print-sheet.receipt { width: 57mm; padding: 3mm; font-size: 10px; line-height: 1.4; }
+
+.print-sheet .print-head { text-align: center; margin-bottom: 10px; }
+.print-sheet .co-name { font-size: 19px; font-weight: 700; }
+.print-sheet .co-meta { font-size: 12px; margin-top: 2px; }
+.print-sheet .doc-title { font-size: 16px; font-weight: 700; letter-spacing: 8px; margin-top: 8px; }
+.print-sheet .meta-row { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; flex-wrap: wrap; }
+
+.print-sheet table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.print-sheet { background: #fff; color: #000; }
+.print-sheet th, .print-sheet td { border: 1px solid #000; padding: 4px 8px; font-size: 12.5px; }
+.print-sheet th { background: #f0f0f0; font-weight: 600; text-align: left; }
+.print-sheet td.num, .print-sheet th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.print-sheet .totals { text-align: right; margin: 6px 0; }
+.print-sheet .totals .grand { font-size: 15px; font-weight: 700; }
+.print-sheet .sign-row { display: flex; gap: 24px; margin-top: 28px; }
+.print-sheet .sign-box { flex: 1; border-top: 1px solid #000; padding-top: 6px; font-size: 12px; text-align: center; }
+.print-sheet .foot-note { font-size: 11px; color: #333; margin-top: 14px; }
+
+/* 57mm 證明聯 */
+.print-sheet.receipt { text-align: center; }
+.print-sheet.receipt .r-store { font-size: 12px; font-weight: 700; }
+.print-sheet.receipt .r-title { font-size: 14px; font-weight: 700; margin: 2px 0; }
+.print-sheet.receipt .r-period { font-size: 13px; font-weight: 700; }
+.print-sheet.receipt .r-no { font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+.print-sheet.receipt .r-line { font-size: 10px; text-align: left; }
+/*
+ * 兩碼改成上下排，理由是紙寬預算算不過來——把算式留在這裡，之後有人想改回並排時要先重算：
+ *
+ *   可用寬度：.print-sheet.receipt 寬 57mm、box-sizing: border-box、padding 3mm
+ *     → 螢幕預覽內容寬 51mm；@media print 把 padding 歸零 → 57mm。取窄的 51mm 當預算。
+ *   單碼寬度：留白（quiet zone）畫在點陣圖裡（見 print.tsx 的 QrImg），圖寬會比呼叫端要的
+ *     碼身大一圈：圖寬 = 碼身 × (模組數 + 2×QUIET_ZONE_MODULES) ÷ 模組數。
+ *     Invoices.tsx 兩處都給 size=80px（1px = 25.4/96 mm ≒ 0.2646mm，80px ≒ 21.2mm）。
+ *     左碼實測 33～49 模組（明細愈多模組愈多）→ 93～99px ≒ 24.6～26.3mm；
+ *     右碼固定是接續碼 "**"，21 模組 → 110px ≒ 29.2mm（模組少，白圈占的比例反而最大）。
+ *   並排會怎樣：26.3 + 29.2 = 55.5mm，再加 gap 就更寬，51mm 裝不下；
+ *     要並排就只能給每碼一個小於自然寬的上限，讓瀏覽器等比例縮圖——例如各分一半（約 25mm）
+ *     時，右碼碼身只剩 25 × 21/29 ≒ 18.1mm（68px），比呼叫端要的 80px 還小。
+ *     碼身縮小＝每個模組跟著縮小，而模組太小正是掃不到的主因，那等於愈修愈糟。
+ *   上下排：每碼獨佔整個 51mm（列印 57mm），最寬的 29.2mm 也用不完，
+ *     不會觸發任何縮放，碼身維持呼叫端要的 80px，白圈也保住 4 個模組。
+ *
+ * max-width: 100% 只是留一道溢出保險（依上面的算式不該用到）；height: auto 讓萬一縮的時候不變形。
+ * 這裡沒有任何一項是驗收：真正的判準是實體列印後上下兩碼各自能被獨立掃出。
+ */
+.print-sheet.receipt .r-qrs { display: flex; flex-direction: column; align-items: center; gap: 2mm; margin-top: 2mm; }
+.print-sheet.receipt .r-qrs .qr-img { max-width: 100%; height: auto; background: #fff; }
+
+@media print {
+  body * { visibility: hidden; }
+  .no-print, .no-print * { display: none !important; }
+  .print-overlay { position: absolute; inset: 0; padding: 0; background: none; overflow: visible; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet { box-shadow: none; margin: 0; }
+  .print-sheet.a4 { width: auto; max-width: none; padding: 0; }
+  .print-sheet.receipt { max-width: 57mm; padding: 0; }
+}
+
+/* ---- 無障礙偏好（三個獨立訊號，各自降級）---- */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  button.primary:active, button.small:active { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sticky-alert { background: var(--red-tint); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --line: #b0b0b6; --line-strong: #86868b; --text-2: #48484d; --text-3: #5c5c61; }
+  .card, .stat { border-color: var(--line-strong); }
+  .badge { border: 1px solid currentColor; }
+}
+
+/* ---- 手機版（窄螢幕）：側欄變抽屜，預設收起、漢堡鈕開啟 ---- */
+@media (max-width: 820px) {
+  .menu-fab { display: block; }
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 70;
+  }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 80;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+    background: var(--surface);
+  }
+  /* 抽屜開著時一律全寬選單（收合態在手機上沒有意義——螢幕已經夠擠了） */
+  .sidebar.mobile-open { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, 0.25); width: 240px; }
+  .sidebar.mobile-open .group { opacity: 1; height: auto; padding: 14px 10px 4px; overflow: visible; }
+  .sidebar.mobile-open .nav-label,
+  .sidebar.mobile-open .brand-name { opacity: 1; width: auto; transform: none; pointer-events: auto; }
+  .sidebar.mobile-open button { justify-content: flex-start; padding: 9px 10px; gap: 9px; }
+  .sidebar.mobile-open .sidebar-head { justify-content: flex-start; gap: 10px; }
+  .sidebar.mobile-open .user-box { display: block; }
+  .menu-fab { display: flex; align-items: center; justify-content: center; }
+  .main { padding: 64px 16px 40px; }
+  form.inline { gap: 8px; }
+  .card { padding: 14px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}

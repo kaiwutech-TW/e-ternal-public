@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VoidInvoice xsi:schemaLocation="urn:GEINV:eInvoiceMessage:F0701:4.1 F0701.xsd" xmlns="urn:GEINV:eInvoiceMessage:F0701:4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <VoidInvoiceNumber>KZ10000012</VoidInvoiceNumber>
+    <InvoiceDate>20241201</InvoiceDate>
+    <BuyerId>0000000000</BuyerId>
+    <SellerId>90000011</SellerId>
+    <VoidDate>20241203</VoidDate>
+    <VoidTime>16:52:43</VoidTime>
+    <VoidReason>註銷</VoidReason>
+    <Remark>金額錯誤</Remark>
+</VoidInvoice>

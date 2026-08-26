@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Allowance xsi:schemaLocation="urn:GEINV:eInvoiceMessage:G0401:4.1 G0401.xsd" xmlns="urn:GEINV:eInvoiceMessage:G0401:4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <Main>
+        <AllowanceNumber>ALW10000013</AllowanceNumber>
+        <AllowanceDate>20241203</AllowanceDate>
+        <Seller>
+            <Identifier>90000011</Identifier>
+            <Name>測試公司</Name>
+            <Address>台北市中華路1段123號</Address>
+            <PersonInCharge>王小明</PersonInCharge>
+            <TelephoneNumber>0212345678</TelephoneNumber>
+            <FacsimileNumber>0212345678</FacsimileNumber>
+            <EmailAddress>test1@test.com.tw</EmailAddress>
+            <CustomerNumber>A123456789</CustomerNumber>
+            <RoleRemark>defaultUser</RoleRemark>
+        </Seller>
+        <Buyer>
+            <Identifier>0000000000</Identifier>
+            <Name>王小明</Name>
+        </Buyer>
+        <AllowanceType>2</AllowanceType>
+    </Main>
+    <Details>
+        <ProductItem>
+            <OriginalInvoiceDate>20241201</OriginalInvoiceDate>
+            <OriginalInvoiceNumber>KZ10000013</OriginalInvoiceNumber>
+            <OriginalSequenceNumber>001</OriginalSequenceNumber>
+            <OriginalDescription>純喫茶紅茶</OriginalDescription>
+            <Quantity>1</Quantity>
+            <UnitPrice>20</UnitPrice>
+            <Amount>19</Amount>
+            <Tax>1</Tax>
+            <AllowanceSequenceNumber>001</AllowanceSequenceNumber>
+            <TaxType>1</TaxType>
+        </ProductItem>
+    </Details>
+    <Amount>
+        <TaxAmount>1</TaxAmount>
+        <TotalAmount>19</TotalAmount>
+    </Amount>
+</Allowance>

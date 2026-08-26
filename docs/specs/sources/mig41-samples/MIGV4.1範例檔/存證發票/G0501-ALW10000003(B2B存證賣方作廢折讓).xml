@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CancelAllowance xsi:schemaLocation="urn:GEINV:eInvoiceMessage:G0501:4.1 G0501.xsd" xmlns="urn:GEINV:eInvoiceMessage:G0501:4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <CancelAllowanceNumber>ALW10000003</CancelAllowanceNumber>
+    <AllowanceType>2</AllowanceType>
+    <AllowanceDate>20241203</AllowanceDate>
+    <BuyerId>90000099</BuyerId>
+    <SellerId>90000011</SellerId>
+    <CancelDate>20241203</CancelDate>
+    <CancelTime>19:27:10</CancelTime>
+    <CancelReason>作廢</CancelReason>
+    <Remark>remark</Remark>
+</CancelAllowance>

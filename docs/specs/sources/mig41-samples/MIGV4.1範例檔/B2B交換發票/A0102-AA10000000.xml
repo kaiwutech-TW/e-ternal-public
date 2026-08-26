@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<InvoiceConfirm xsi:schemaLocation="urn:GEINV:eInvoiceMessage:A0102:4.1 A0102.xsd" xmlns="urn:GEINV:eInvoiceMessage:A0102:4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <InvoiceNumber>AA10000000</InvoiceNumber>
+    <InvoiceDate>20241210</InvoiceDate>
+    <BuyerId>90000099</BuyerId>
+    <SellerId>90000011</SellerId>
+    <ReceiveDate>20241211</ReceiveDate>
+    <ReceiveTime>09:00:00</ReceiveTime>
+    <BuyerRemark>1</BuyerRemark>
+    <Remark>remark</Remark>
+    <BondedAreaConfirm>4</BondedAreaConfirm>
+</InvoiceConfirm>

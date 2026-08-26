@@ -1,0 +1,21 @@
+# tw-erp 公網部署的反向代理（僅 docker-compose.public.yml 會用到）。
+# SITE_ADDRESS 由 compose 帶入，例：erp.example.com。
+# caddy 會自動申請並續期 Let's Encrypt 憑證——前提是這個網域真的解析到本機且 80/443 通得到。
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# HSTS：告訴瀏覽器以後只用 https 連這個網域。
+	# 刻意不加 preload 與 includeSubDomains——那兩個一旦被瀏覽器記住就很難收回，
+	# 而這裡是使用者自己的網域，我們不該替他做這個難以逆轉的決定。
+	header Strict-Transport-Security "max-age=31536000"
+
+	# 前端是自帶所有資源的 SPA，不需要載入任何外部來源
+	header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+	header X-Content-Type-Options "nosniff"
+	header Referrer-Policy "same-origin"
+	# 反代自己不該把後端的伺服器資訊往外送
+	header -Server
+
+	reverse_proxy app:3000
+}

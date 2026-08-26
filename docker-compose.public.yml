@@ -1,0 +1,49 @@
+# 公網／雲端部署的疊加設定（內網部署不要用這個檔，維持原本的 docker compose up 即可）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.public.yml up -d --build
+#
+# 它相對於內網部署改了四件事，每一件都是「不改就不該對外」：
+#   ① caddy 反代終結 TLS 並自動申請憑證；app 不再直接對外開埠
+#      （原本 3000 埠是綁 0.0.0.0，在雲端主機上等於整個網際網路都連得到 http 明文）
+#   ② TRUST_PROXY=1：站在反代後面，來源位址的真相在 X-Forwarded-For。
+#      不設的話登入節流的來源桶會把全公司算成同一個來源（反代自己的 IP）
+#   ③ PII_KEY 必填：身分證號改為欄位級加密儲存。這裡用 `:?` 而不是給預設值——
+#      預設值會讓「忘了設」變成一個沒有人會發現的靜默降級
+#   ④ 備份加密的通行語一併帶進來，讓排程備份與這份設定放在同一個地方
+#
+# 仍然**沒有**改的（要知道自己還缺什麼）：
+#   - 資料庫密碼仍在 .env（0600、已在 .gitignore）。app 支援 DATABASE_PASSWORD_FILE，
+#     要用 secrets／Kubernetes 的話接得上（見 apps/api/src/db-url.ts），
+#     但單機部署上它縮小的只是「docker inspect 看得到」的範圍，不是加密
+#   - 管理者帳號沒有二階段驗證
+#   - db 服務本來就沒有 publish 任何埠，只在 compose 內網可達——這點內網部署也一樣
+
+services:
+  app:
+    ports: !reset []
+    environment:
+      TRUST_PROXY: "1"
+      PII_KEY: ${PII_KEY:?公網部署必須設定 PII_KEY（身分證號加密金鑰，遺失則該欄位無法復原）}
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # 例：erp.example.com。必須是真正解析到這台主機的網域，caddy 才申請得到憑證
+      SITE_ADDRESS: ${SITE_ADDRESS:?請在 .env 設定 SITE_ADDRESS（例：erp.example.com）}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # 憑證放這裡；刪掉會重新申請，可能撞到 Let's Encrypt 的頻率限制
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

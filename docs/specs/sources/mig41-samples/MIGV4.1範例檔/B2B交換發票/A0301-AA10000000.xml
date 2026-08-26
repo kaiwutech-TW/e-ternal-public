@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RejectInvoice xsi:schemaLocation="urn:GEINV:eInvoiceMessage:A0301:4.1 A0301.xsd" xmlns="urn:GEINV:eInvoiceMessage:A0301:4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <RejectInvoiceNumber>AA10000000</RejectInvoiceNumber>
+    <InvoiceDate>20241210</InvoiceDate>
+    <BuyerId>90000099</BuyerId>
+    <SellerId>90000011</SellerId>
+    <RejectDate>20241220</RejectDate>
+    <RejectTime>09:00:00</RejectTime>
+    <RejectReason>退回</RejectReason>
+    <Remark>remark</Remark>
+    <Reserved1>CROSS</Reserved1>
+    <Reserved2>crossDomain</Reserved2>
+</RejectInvoice>
