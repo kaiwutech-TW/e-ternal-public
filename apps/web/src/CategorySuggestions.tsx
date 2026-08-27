@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
+import { useT } from "./i18n.ts";
 import type { ExpenseCategory } from "./types.ts";
 
 /* ════════════════ 賣方統編 → 歷史分類候選（W7）：攤開來給人看，不替他選 ════════════════
@@ -182,17 +183,16 @@ export function CategorySuggestions(props: {
   /** 使用者按了哪一個。只有 onClick 會叫它——沒有點擊就沒有這個呼叫（矩陣測試釘住） */
   onPick: (accountCode: string) => void;
 }) {
+  const t = useT();
   const rows = visibleSuggestions(useSellerSuggestions(props.sellerTaxId), props.categories);
   if (!props.sellerTaxId || rows.length === 0) return null;
   return (
     <div style={{ fontSize: 13, color: "var(--text-2)", marginTop: 4 }}>
-      這家賣方（統編 {props.sellerTaxId}）在公司過去<strong>已核准</strong>的報銷單裡被歸過這幾個分類，
-      括號裡是<strong>幾張單</strong>這樣歸過（同一張單裡的好幾筆只算一次——那是一次被接受的決定）。
-      要用哪一個由你決定（同一家店可以有不同用途，系統不替你挑）：
+      {t("這家賣方（統編 {id}）在公司過去", { id: props.sellerTaxId })}<strong>{t("已核准")}</strong>{t("的報銷單裡被歸過這幾個分類，括號裡是")}<strong>{t("幾張單")}</strong>{t("這樣歸過（同一張單裡的好幾筆只算一次——那是一次被接受的決定）。要用哪一個由你決定（同一家店可以有不同用途，系統不替你挑）：")}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
         {rows.map((s) => (
           <button key={s.code} disabled={props.disabled} className="small" onClick={() => props.onPick(s.code)}>
-            {s.code} {s.label}（{s.claimCount} 張單）
+            {t("{code} {label}（{count} 張單）", { code: s.code, label: s.label, count: s.claimCount })}
           </button>
         ))}
       </div>

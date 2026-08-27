@@ -220,7 +220,7 @@ export function App() {
       <NavContext.Provider value={(key) => { setPage(key); setMobileOpen(false); }}>
         <div className="layout">
           {/* 手機版的開關（CSS 只在窄螢幕顯示）；抽屜開著時給一層背板點擊即關 */}
-          <button className="menu-fab" onClick={() => setMobileOpen(true)} aria-label="開啟選單"><Menu size={20} /></button>
+          <button className="menu-fab" onClick={() => setMobileOpen(true)} aria-label={t("開啟選單")}><Menu size={20} /></button>
           {mobileOpen && <div className="nav-backdrop" onClick={() => setMobileOpen(false)} />}
           <nav className={`sidebar${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
             <div className="sidebar-head">
@@ -234,7 +234,7 @@ export function App() {
               if (!items.length) return null;
               return (
                 <div key={group}>
-                  {pages.length > 3 && <div className="group">{group}</div>}
+                  {pages.length > 3 && <div className="group">{t(group)}</div>}
                   {items.map((p) => (
                     <button
                       key={p.key}
@@ -243,12 +243,12 @@ export function App() {
                       onMouseEnter={(e) => {
                         if (!collapsed || mobileOpen) return;
                         const r = e.currentTarget.getBoundingClientRect();
-                        setTip({ label: p.label, top: r.top + r.height / 2 });
+                        setTip({ label: t(p.label), top: r.top + r.height / 2 });
                       }}
                       onMouseLeave={() => setTip(null)}
                     >
                       <span className="nav-icon" aria-hidden><p.icon size={18} strokeWidth={1.8} /></span>
-                      <span className="nav-label">{p.label}</span>
+                      <span className="nav-label">{t(p.label)}</span>
                     </button>
                   ))}
                 </div>
@@ -258,9 +258,9 @@ export function App() {
               <span className="nav-icon" aria-hidden>
                 {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.8} /> : <PanelLeftClose size={18} strokeWidth={1.8} />}
               </span>
-              <span className="nav-label">收合側邊欄</span>
+              <span className="nav-label">{t("收合側邊欄")}</span>
             </button>
-            <button className="collapse-btn" style={{ marginTop: 0 }} onClick={cycleTheme} title="外觀：淺色／深色／跟隨系統">
+            <button className="collapse-btn" style={{ marginTop: 0 }} onClick={cycleTheme} title={t("外觀：淺色／深色／跟隨系統")}>
               <span className="nav-icon" aria-hidden>
                 {themePref === "light" ? <Sun size={18} strokeWidth={1.8} /> : themePref === "dark" ? <Moon size={18} strokeWidth={1.8} /> : <MonitorCog size={18} strokeWidth={1.8} />}
               </span>
@@ -272,9 +272,9 @@ export function App() {
             </button>
             <div className="user-box" style={{ paddingTop: 14, borderTop: "1px solid var(--line)" }}>
               <div style={{ fontSize: 12.5, color: "var(--text-2)", padding: "4px 10px" }}>
-                {user.displayName}（{ROLE_LABELS[user.role]}）
+                {t("{name}（{role}）", { name: user.displayName, role: t(ROLE_LABELS[user.role]) })}
               </div>
-              <button onClick={() => void logout()}>登出</button>
+              <button onClick={() => void logout()}>{t("登出")}</button>
             </div>
           </nav>
           {tip && collapsed && !mobileOpen && (
@@ -283,8 +283,8 @@ export function App() {
           <AgentChat />
           <main className="main" key={current.key}>
             <div className="page-header">
-              <h2>{current.label}</h2>
-              <div className="desc">{current.desc}</div>
+              <h2>{t(current.label)}</h2>
+              <div className="desc">{t(current.desc)}</div>
             </div>
             {current.el}
           </main>

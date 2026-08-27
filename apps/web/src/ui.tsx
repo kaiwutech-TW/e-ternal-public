@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { useT } from "./i18n.ts";
 import type { PageKey } from "@tw-erp/core";
 
 /** 頁面導覽：App 提供 setPage，任何元件（新手引導、零狀態按鈕）都能帶使用者去下一步 */
@@ -45,6 +46,7 @@ export function ListFilterBar(props: {
   /** 目前實際顯示的筆數 */
   shown: number;
 }) {
+  const t = useT();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [partnerId, setPartnerId] = useState("");
@@ -62,29 +64,29 @@ export function ListFilterBar(props: {
       }}
     >
       <label className="field">
-        日期起
+        {t("日期起")}
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
       </label>
       <label className="field">
-        日期迄
+        {t("日期迄")}
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
       </label>
       {props.partners !== undefined && (
         <label className="field">
-          {props.partnerLabel ?? "對象"}
+          {t(props.partnerLabel ?? "對象")}
           <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
-            <option value="">— 全部 —</option>
+            <option value="">{t("— 全部 —")}</option>
             {props.partners?.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </label>
       )}
-      <button className="primary">查詢</button>
+      <button className="primary">{t("查詢")}</button>
       {props.total !== null && (
         <span style={{ fontSize: 13, color: truncated ? "var(--amber)" : "var(--text-2)", alignSelf: "center" }}>
-          共 {props.total.toLocaleString("zh-TW")} 筆
-          {truncated && `，僅顯示最新 ${props.shown} 筆——請用日期範圍或對象縮小查詢`}
+          {t("共 {n} 筆", { n: props.total.toLocaleString("zh-TW") })}
+          {truncated && t("，僅顯示最新 {n} 筆——請用日期範圍或對象縮小查詢", { n: props.shown })}
         </span>
       )}
     </form>

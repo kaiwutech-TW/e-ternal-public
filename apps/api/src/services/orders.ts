@@ -50,8 +50,8 @@ function computeTotals(lines: DocLineInput[], rate: number) {
 
 async function requireCustomer(db: Db, partnerId: number) {
   const [partner] = await db.select().from(schema.partners).where(eq(schema.partners.id, partnerId));
-  if (!partner) throw new AppError(404, `交易對象不存在: ${partnerId}`);
-  if (!partner.isCustomer) throw new AppError(422, `非客戶: ${partner.name}`);
+  if (!partner) throw new AppError(404, "交易對象不存在: {partnerId}", { partnerId });
+  if (!partner.isCustomer) throw new AppError(422, "非客戶: {name}", { name: partner.name });
   return partner;
 }
 
@@ -136,8 +136,8 @@ export async function listQuotes(db: Db, f: ListFilter) {
 
 export async function setQuoteLost(db: Db, id: number) {
   const [quote] = await db.select().from(schema.quotes).where(eq(schema.quotes.id, id));
-  if (!quote) throw new AppError(404, `報價單不存在: ${id}`);
-  if (quote.status !== "open") throw new AppError(409, `報價單非洽談中（目前 ${quote.status}）`);
+  if (!quote) throw new AppError(404, "報價單不存在: {id}", { id });
+  if (quote.status !== "open") throw new AppError(409, "報價單非洽談中（目前 {status}）", { status: quote.status });
   const [updated] = await db
     .update(schema.quotes)
     .set({ status: "lost" })
@@ -152,8 +152,8 @@ export async function convertQuote(db: Db, id: number, orderDate: string, create
     // R2：與 createOrder 同一條規則——訂單日期年份打錯當場擋下
     assertNotFarFuture(orderDate, "訂單日期");
     const [quote] = await tx.select().from(schema.quotes).where(eq(schema.quotes.id, id));
-    if (!quote) throw new AppError(404, `報價單不存在: ${id}`);
-    if (quote.status !== "open") throw new AppError(409, `報價單已${quote.status === "won" ? "成交" : "結案"}，不可再轉訂單`);
+    if (!quote) throw new AppError(404, "報價單不存在: {id}", { id });
+    if (quote.status !== "open") throw new AppError(409, quote.status === "won" ? "報價單已成交，不可再轉訂單" : "報價單已結案，不可再轉訂單");
     const lines = await tx.select().from(schema.quoteLines).where(eq(schema.quoteLines.quoteId, id));
 
     const [order] = await tx
@@ -302,13 +302,14 @@ export async function shipOrder(
 ) {
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(schema.orders).where(eq(schema.orders.id, orderId));
-    if (!order) throw new AppError(404, `訂單不存在: ${orderId}`);
+    if (!order) throw new AppError(404, "訂單不存在: {orderId}", { orderId });
     if (order.status === "canceled" || order.status === "closed") {
       throw new AppError(
         409,
         order.status === "closed"
-          ? `訂單 #${orderId} 已結案（結案＝到此為止，剩餘量不再出貨），不可出貨。要繼續交易請開一張新訂單`
-          : `訂單 #${orderId} 已取消（取消＝這張單從沒發生），不可出貨。要交易請開一張新訂單`,
+          ? "訂單 #{orderId} 已結案（結案＝到此為止，剩餘量不再出貨），不可出貨。要繼續交易請開一張新訂單"
+          : "訂單 #{orderId} 已取消（取消＝這張單從沒發生），不可出貨。要交易請開一張新訂單",
+        { orderId },
       );
     }
     const orderLines = await tx.select().from(schema.orderLines).where(eq(schema.orderLines.orderId, orderId));
@@ -323,11 +324,11 @@ export async function shipOrder(
 
     for (const s of shipLines) {
       const line = byId.get(s.orderLineId);
-      if (!line) throw new AppError(404, `訂單明細不存在: ${s.orderLineId}`);
+      if (!line) throw new AppError(404, "訂單明細不存在: {orderLineId}", { orderLineId: s.orderLineId });
       const remaining = Number(line.qty) - Number(line.shippedQty);
-      if (s.qty <= 0) throw new AppError(422, `出貨量必須大於 0（明細 ${s.orderLineId}）`);
+      if (s.qty <= 0) throw new AppError(422, "出貨量必須大於 0（明細 {orderLineId}）", { orderLineId: s.orderLineId });
       if (s.qty > remaining) {
-        throw new AppError(422, `出貨量超過剩餘量: 明細 ${s.orderLineId} 剩 ${remaining}，欲出 ${s.qty}`);
+        throw new AppError(422, "出貨量超過剩餘量: 明細 {orderLineId} 剩 {remaining}，欲出 {qty}", { orderLineId: s.orderLineId, remaining, qty: s.qty });
       }
     }
 
@@ -370,13 +371,12 @@ export async function shipOrder(
 export async function cancelOrder(db: Db, orderId: number) {
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(schema.orders).where(eq(schema.orders.id, orderId));
-    if (!order) throw new AppError(404, `訂單不存在: ${orderId}`);
+    if (!order) throw new AppError(404, "訂單不存在: {orderId}", { orderId });
     if (order.status !== "open") {
       throw new AppError(
         409,
-        `僅未出貨的訂單可取消（取消＝這張單從沒發生；目前 ${order.status}）。` +
-          `已有出貨的訂單請改用「結案」（結案＝到此為止：已出貨的銷貨單與憑證留著，剩餘量不再出）；` +
-          `出錯的出貨請先到銷貨頁作廢該張銷貨單`,
+        "僅未出貨的訂單可取消（取消＝這張單從沒發生；目前 {status}）。已有出貨的訂單請改用「結案」（結案＝到此為止：已出貨的銷貨單與憑證留著，剩餘量不再出）；出錯的出貨請先到銷貨頁作廢該張銷貨單",
+        { status: order.status },
       );
     }
     const [updated] = await tx
@@ -398,17 +398,22 @@ export async function cancelOrder(db: Db, orderId: number) {
 export async function closeOrder(db: Db, orderId: number, reason: string, closedBy: number) {
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(schema.orders).where(eq(schema.orders.id, orderId));
-    if (!order) throw new AppError(404, `訂單不存在: ${orderId}`);
+    if (!order) throw new AppError(404, "訂單不存在: {orderId}", { orderId });
     if (order.status === "closed") {
       throw new AppError(
         409,
         order.closedAt
-          ? `訂單 #${orderId} 已於 ${order.closedAt.toISOString().slice(0, 10)} 短交結案（原因：${order.closeReason ?? "未記錄"}），不可再結案`
-          : `訂單 #${orderId} 已全數出清、自動結案，不需再結案`,
+          ? "訂單 #{orderId} 已於 {closedAt} 短交結案（原因：{reason}），不可再結案"
+          : "訂單 #{orderId} 已全數出清、自動結案，不需再結案",
+        {
+          orderId,
+          closedAt: order.closedAt?.toISOString().slice(0, 10),
+          reason: order.closeReason ?? "未記錄",
+        },
       );
     }
     if (order.status === "canceled") {
-      throw new AppError(409, `訂單 #${orderId} 已取消（取消＝這張單從沒發生），沒有可結案的內容`);
+      throw new AppError(409, "訂單 #{orderId} 已取消（取消＝這張單從沒發生），沒有可結案的內容", { orderId });
     }
     const [updated] = await tx
       .update(schema.orders)

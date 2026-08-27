@@ -1,4 +1,5 @@
 import { parseEInvoiceLeftQr, type EInvoiceLeftQr } from "@tw-erp/einvoice";
+import { t } from "./i18n.ts";
 import { prepareZXingModule, readBarcodes, type ReaderOptions } from "zxing-wasm/reader";
 // vite 會把這個 .wasm 當成資產打包、emit 到自家 origin（dist/assets/…），import 拿到的是那個路徑。
 // 這一行是「不走 CDN」的關鍵：見下面 prepareZXingModule 的說明。
@@ -230,13 +231,13 @@ export async function readReceiptImage(
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("讀取影像失敗"));
+    reader.onerror = () => reject(new Error(t("讀取影像失敗")));
     reader.readAsDataURL(file);
   });
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
     el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error("影像格式不支援"));
+    el.onerror = () => reject(new Error(t("影像格式不支援")));
     el.src = dataUrl;
   });
 

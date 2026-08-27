@@ -71,7 +71,8 @@ async function requireAccountCode(db: Db, code: string) {
   if (!account) {
     throw new AppError(
       422,
-      `會計科目不存在: ${code}（請到「會計科目」頁新增這個代號，或改填一個已存在的費用科目）`,
+      "會計科目不存在: {code}（請到「會計科目」頁新增這個代號，或改填一個已存在的費用科目）",
+      { code },
     );
   }
   return account;
@@ -84,9 +85,10 @@ export async function createCategory(db: Db, input: CategoryInput) {
   if (account.type !== "expense") {
     throw new AppError(
       422,
-      `${account.code} ${account.name} 不是費用類科目，不能當扣繳類別的費用科目` +
-        `（扣繳支出單的借方是認列的費用；若這確實是費用請到「會計科目」頁改它的類別，` +
-        `或改填 6xxx 開頭的費用科目）`,
+      "{code} {name} 不是費用類科目，不能當扣繳類別的費用科目" +
+        "（扣繳支出單的借方是認列的費用；若這確實是費用請到「會計科目」頁改它的類別，" +
+        "或改填 6xxx 開頭的費用科目）",
+      { code: account.code, name: account.name },
     );
   }
   const [row] = await db
@@ -107,11 +109,11 @@ export async function updateCategory(db: Db, id: number, patch: CategoryPatch) {
     .select()
     .from(schema.withholdingCategories)
     .where(eq(schema.withholdingCategories.id, id));
-  if (!target) throw new AppError(404, `扣繳類別不存在: ${id}`);
+  if (!target) throw new AppError(404, "扣繳類別不存在: {id}", { id });
   if (patch.expenseAccountCode !== undefined) {
     const account = await requireAccountCode(db, patch.expenseAccountCode);
     if (account.type !== "expense") {
-      throw new AppError(422, `${account.code} ${account.name} 不是費用類科目，不能當扣繳類別的費用科目`);
+      throw new AppError(422, "{code} {name} 不是費用類科目，不能當扣繳類別的費用科目", { code: account.code, name: account.name });
     }
   }
   const values = {
@@ -187,8 +189,9 @@ function resolveAmounts(
   if (netAmount < 0) {
     throw new AppError(
       422,
-      `代扣合計 ${taxWithheld + supplementWithheld} 元超過給付總額 ${input.grossAmount} 元，實付金額會變成負數。` +
-        `請確認給付總額是「未扣繳前的總額」（不是實際匯出去的錢），或調低代扣金額`,
+      "代扣合計 {withheld} 元超過給付總額 {gross} 元，實付金額會變成負數。" +
+        "請確認給付總額是「未扣繳前的總額」（不是實際匯出去的錢），或調低代扣金額",
+      { withheld: taxWithheld + supplementWithheld, gross: input.grossAmount },
     );
   }
   return { taxWithheld, supplementWithheld, netAmount, notes };
@@ -200,7 +203,7 @@ export async function estimatePayment(db: Db, input: PaymentInput) {
     .select()
     .from(schema.withholdingCategories)
     .where(eq(schema.withholdingCategories.id, input.categoryId));
-  if (!category) throw new AppError(404, `扣繳類別不存在: ${input.categoryId}`);
+  if (!category) throw new AppError(404, "扣繳類別不存在: {id}", { id: input.categoryId });
   return resolveAmounts(input, category);
 }
 
@@ -214,16 +217,17 @@ export async function createPayment(db: Db, input: PaymentInput, userId: number)
       .select()
       .from(schema.withholdingCategories)
       .where(eq(schema.withholdingCategories.id, input.categoryId));
-    if (!category) throw new AppError(404, `扣繳類別不存在: ${input.categoryId}`);
+    if (!category) throw new AppError(404, "扣繳類別不存在: {id}", { id: input.categoryId });
     if (!category.active) {
       throw new AppError(
         422,
-        `扣繳類別已停用: ${category.label}（請在扣繳設定啟用它，或改選其他類別）`,
+        "扣繳類別已停用: {label}（請在扣繳設定啟用它，或改選其他類別）",
+        { label: category.label },
       );
     }
 
     const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, input.partnerId));
-    if (!partner) throw new AppError(404, `交易對象不存在: ${input.partnerId}`);
+    if (!partner) throw new AppError(404, "交易對象不存在: {id}", { id: input.partnerId });
     // 只接受自然人。這是**本頁的適用範圍**，不是稅法判斷——
     // 年度憑單彙總是依「受領人」分組的，混入法人會讓那張表失去意義。
     // 訊息刻意不說「對法人沒有扣繳問題」：那是我們沒查證的稅法斷言，
@@ -232,11 +236,12 @@ export async function createPayment(db: Db, input: PaymentInput, userId: number)
     if (!partner.isIndividual) {
       throw new AppError(
         422,
-        `${partner.name} 不是個人。扣繳支出單只處理「付款給自然人」的情形（個人房東、個人接案者等），` +
-          `因為年度憑單彙總是依受領人分組的。` +
-          `若他確實是個人，請到「客戶與商品」頁把這筆交易對象改為「個人」（統一編號要清空）；` +
-          `若這筆付款是別的情形而你仍需要記錄代扣，請用「傳票」頁開一張手工傳票` +
-          `（借費用／貸代扣款／貸現金），但那筆不會進入年度彙總`,
+        "{name} 不是個人。扣繳支出單只處理「付款給自然人」的情形（個人房東、個人接案者等），" +
+          "因為年度憑單彙總是依受領人分組的。" +
+          "若他確實是個人，請到「客戶與商品」頁把這筆交易對象改為「個人」（統一編號要清空）；" +
+          "若這筆付款是別的情形而你仍需要記錄代扣，請用「傳票」頁開一張手工傳票" +
+          "（借費用／貸代扣款／貸現金），但那筆不會進入年度彙總",
+        { name: partner.name },
       );
     }
 
@@ -244,17 +249,18 @@ export async function createPayment(db: Db, input: PaymentInput, userId: number)
 
     const accounts = await tx.select().from(schema.accounts);
     const cash = accounts.find((a) => a.id === input.cashAccountId);
-    if (!cash) throw new AppError(404, `科目不存在: ${input.cashAccountId}`);
+    if (!cash) throw new AppError(404, "科目不存在: {id}", { id: input.cashAccountId });
     // 與收付款單／報銷付款同一條規則：必須是現金科目，否則付出去的錢不會進現金流量表
     if (!cash.isCash) {
       throw new AppError(
         422,
-        `${cash.code} ${cash.name} 不是現金科目，不能當付款科目` +
-          `（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，付出的錢才會進現金流量表）`,
+        "{code} {name} 不是現金科目，不能當付款科目" +
+          "（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，付出的錢才會進現金流量表）",
+        { code: cash.code, name: cash.name },
       );
     }
     if (!cash.active) {
-      throw new AppError(400, `科目已停用，不可再過帳: ${cash.code} ${cash.name}（請改選其他現金科目，或先啟用它）`);
+      throw new AppError(400, "科目已停用，不可再過帳: {code} {name}（請改選其他現金科目，或先啟用它）", { code: cash.code, name: cash.name });
     }
 
     const byCode = new Map(accounts.map((a) => [a.code, a]));
@@ -262,8 +268,9 @@ export async function createPayment(db: Db, input: PaymentInput, userId: number)
     if (!expense) {
       throw new AppError(
         422,
-        `扣繳類別「${category.label}」對應的費用科目 ${category.expenseAccountCode} 不存在` +
-          `（請到「會計科目」頁新增它，或在扣繳設定改成別的費用科目）`,
+        "扣繳類別「{label}」對應的費用科目 {code} 不存在" +
+          "（請到「會計科目」頁新增它，或在扣繳設定改成別的費用科目）",
+        { label: category.label, code: category.expenseAccountCode },
       );
     }
     // 費用科目由使用者在扣繳設定指定，所以它「不是」系統科目，可能已被停用。
@@ -271,8 +278,9 @@ export async function createPayment(db: Db, input: PaymentInput, userId: number)
     if (!expense.active) {
       throw new AppError(
         400,
-        `科目已停用，不可再過帳: ${expense.code} ${expense.name}` +
-          `（請在扣繳設定把「${category.label}」改成別的費用科目，或到「會計科目」頁啟用它）`,
+        "科目已停用，不可再過帳: {code} {name}" +
+          "（請在扣繳設定把「{label}」改成別的費用科目，或到「會計科目」頁啟用它）",
+        { code: expense.code, name: expense.name, label: category.label },
       );
     }
     // 2211／2212 是系統科目（core 的 ACCOUNT 常數 → SYSTEM_ACCOUNT_CODES），

@@ -155,8 +155,8 @@ async function assertInvoiceNotClaimed(
   if (dupItem) {
     throw new AppError(
       422,
-      `發票 ${invoiceNumber} 已列報在報銷單 #${dupItem.claimId}——同一張發票列報兩次會讓進項稅重複扣抵（少繳稅）。` +
-        `請核對號碼；若 #${dupItem.claimId} 才是登錯的那張，請先退回它。確為不同賣方的同號發票，兩筆都補上賣方統編即可放行`,
+      "發票 {invoiceNumber} 已列報在報銷單 #{claimId}——同一張發票列報兩次會讓進項稅重複扣抵（少繳稅）。請核對號碼；若 #{claimId} 才是登錯的那張，請先退回它。確為不同賣方的同號發票，兩筆都補上賣方統編即可放行",
+      { invoiceNumber, claimId: dupItem.claimId },
     );
   }
   const dupPurchases = await tx
@@ -174,9 +174,8 @@ async function assertInvoiceNotClaimed(
   if (dupPurchase) {
     throw new AppError(
       422,
-      `發票 ${invoiceNumber} 已登錄在進貨單 #${dupPurchase.id}——同一張發票再走報銷會讓進項稅重複扣抵（少繳稅）。` +
-        `請核對號碼；若 #${dupPurchase.id} 才是登錯的那張，請先修正或作廢它。` +
-        `確為不同賣方的同號發票，報銷明細補上賣方統編即可放行`,
+      "發票 {invoiceNumber} 已登錄在進貨單 #{purchaseId}——同一張發票再走報銷會讓進項稅重複扣抵（少繳稅）。請核對號碼；若 #{purchaseId} 才是登錯的那張，請先修正或作廢它。確為不同賣方的同號發票，報銷明細補上賣方統編即可放行",
+      { invoiceNumber, purchaseId: dupPurchase.id },
     );
   }
 }
@@ -235,7 +234,7 @@ function assertRealDate(date: string | null | undefined, label: string): void {
   const [y, m, d] = date.split("-").map(Number);
   const probe = new Date(Date.UTC(y!, m! - 1, d!));
   if (probe.getUTCFullYear() !== y || probe.getUTCMonth() + 1 !== m || probe.getUTCDate() !== d) {
-    throw new AppError(422, `${label}（${date}）不是日曆上存在的日期——請核對月份與日數再送出`);
+    throw new AppError(422, "{label}（{date}）不是日曆上存在的日期——請核對月份與日數再送出", { label, date });
   }
 }
 
@@ -278,7 +277,7 @@ async function prepareItems(
   for (const [index, item] of inputs.entries()) {
     const at = `第 ${index + 1} 筆明細`;
     const category = CATEGORY_BY_CODE.get(item.accountCode);
-    if (!category) throw new AppError(422, `報銷分類不存在: ${item.accountCode}`);
+    if (!category) throw new AppError(422, "報銷分類不存在: {code}", { code: item.accountCode });
     // 可扣抵性以**報銷單日期**解析生效期間（單據的歸屬日期就是它，核准傳票也記在這一天）
     const rule = await resolveDeductible(tx, item.accountCode, claimDate, category.inputTaxDeductible);
     // 硬規則：可扣抵需為電子發票＋發票號碼/賣方統編齊全＋分類允許；前端未主張（統編未打公司）也不扣。
@@ -294,7 +293,7 @@ async function prepareItems(
       !!item.sellerTaxId &&
       rule.deductible;
     if (item.invoiceNumber && !/^[A-Z]{2}\d{8}$/.test(item.invoiceNumber)) {
-      throw new AppError(422, `發票號碼格式錯誤: ${item.invoiceNumber}`);
+      throw new AppError(422, "發票號碼格式錯誤: {invoiceNumber}", { invoiceNumber: item.invoiceNumber });
     }
     // invoice_date 是 date 欄位，收不了日曆上不存在的日期；擋在這裡才講得出是哪一筆哪一欄
     assertRealDate(item.invoiceDate, `${at}的發票日期`);
@@ -310,7 +309,8 @@ async function prepareItems(
       if (seenInvoiceNumbers.has(item.invoiceNumber)) {
         throw new AppError(
           422,
-          `發票 ${item.invoiceNumber} 在同一張報銷單裡出現兩次——同一張發票只能列報一次，請刪掉重複的那筆`,
+          "發票 {invoiceNumber} 在同一張報銷單裡出現兩次——同一張發票只能列報一次，請刪掉重複的那筆",
+          { invoiceNumber: item.invoiceNumber },
         );
       }
       seenInvoiceNumbers.add(item.invoiceNumber);
@@ -536,7 +536,8 @@ async function prepareItems(
       422,
       conflicts.length === 1
         ? conflicts[0]!
-        : `這張報銷單有 ${conflicts.length} 筆明細要你確認（一次列出，不必來回送）：\n${conflicts.join("\n")}`,
+        : "這張報銷單有 {n} 筆明細要你確認（一次列出，不必來回送）：\n{list}",
+      { n: conflicts.length, list: conflicts.join("\n") },
     );
   }
   return { items, notes };
@@ -568,8 +569,8 @@ export async function createClaim(db: Db, input: ClaimInput) {
     assertRealDate(input.claimDate, "報銷單日期");
     assertNotFarFuture(input.claimDate, "報銷單日期");
     const [employee] = await tx.select().from(schema.employees).where(eq(schema.employees.id, input.employeeId));
-    if (!employee) throw new AppError(404, `員工不存在: ${input.employeeId}`);
-    if (!employee.active) throw new AppError(422, `員工已停用: ${employee.name}`);
+    if (!employee) throw new AppError(404, "員工不存在: {id}", { id: input.employeeId });
+    if (!employee.active) throw new AppError(422, "員工已停用: {name}", { name: employee.name });
 
     const { items, notes } = await prepareItems(tx, input.claimDate, input.items);
     const total = items.reduce((s, i) => s + i.amount, 0);
@@ -604,8 +605,8 @@ export async function resubmitClaim(db: Db, claimId: number, input: Omit<ClaimIn
     if (claim.status !== "rejected") {
       throw new AppError(
         409,
-        `報銷單狀態不可修改重送: ${claim.status}（只有被退回的單可以改；` +
-          `已核准的單要更正請用作廢，送審中的請先請財務退回）`,
+        "報銷單狀態不可修改重送: {status}（只有被退回的單可以改；已核准的單要更正請用作廢，送審中的請先請財務退回）",
+        { status: claim.status },
       );
     }
     // claim_date 也是 date 欄位：2026-02-30 這種形狀合格、日曆上不存在的日期會炸成 500
@@ -658,7 +659,7 @@ export async function resubmitClaim(db: Db, claimId: number, input: Omit<ClaimIn
 
 async function requireClaim(tx: Db, id: number) {
   const [claim] = await tx.select().from(schema.expenseClaims).where(eq(schema.expenseClaims.id, id));
-  if (!claim) throw new AppError(404, `報銷單不存在: ${id}`);
+  if (!claim) throw new AppError(404, "報銷單不存在: {id}", { id });
   return claim;
 }
 
@@ -677,7 +678,8 @@ function assertNotSelf(user: AuthUser, claimEmployeeId: number, action: string):
   if (user.role !== "admin" && user.employeeId !== null && user.employeeId === claimEmployeeId) {
     throw new AppError(
       409,
-      `不能${action}自己送的報銷單——請由其他財務或管理者審核（審核的意義是另一雙眼睛）`,
+      "不能{action}自己送的報銷單——請由其他財務或管理者審核（審核的意義是另一雙眼睛）",
+      { action },
     );
   }
 }
@@ -690,7 +692,7 @@ function assertNotSelf(user: AuthUser, claimEmployeeId: number, action: string):
 export async function approveClaim(db: Db, claimId: number, approver: AuthUser, companyAccountId?: number) {
   return db.transaction(async (tx) => {
     const claim = await requireClaim(tx, claimId);
-    if (claim.status !== "submitted") throw new AppError(409, `報銷單狀態不可核准: ${claim.status}`);
+    if (claim.status !== "submitted") throw new AppError(409, "報銷單狀態不可核准: {status}", { status: claim.status });
     assertNotSelf(approver, claim.employeeId, "核准");
     const items = await tx.select().from(schema.expenseItems).where(eq(schema.expenseItems.claimId, claimId));
     // 費用傳票以單據日入帳，可扣抵明細卻以發票日進 401——兩個日期都要檢查關帳
@@ -701,12 +703,12 @@ export async function approveClaim(db: Db, claimId: number, approver: AuthUser, 
     const codeToId = await accountIdByCode(tx);
     const need = (code: string) => {
       const account = codeToId.get(code);
-      if (!account) throw new AppError(500, `科目未初始化: ${code}`);
+      if (!account) throw new AppError(500, "科目未初始化: {code}", { code });
       // 與手工傳票／收付款單／報銷付款同一條規則：停用的科目不得再過帳。
       // 報銷單可能在送出後、核准前才被停用該費用科目（會計整理科目表的正常操作），
       // 少了這道檢查，核准會照樣把分錄寫進已停用的科目，等於「停用」只是把下拉選單藏起來
       if (!account.active) {
-        throw new AppError(400, `科目已停用，不可再過帳: ${code} ${account.name}（請改用其他科目，或先啟用它）`);
+        throw new AppError(400, "科目已停用，不可再過帳: {code} {name}（請改用其他科目，或先啟用它）", { code, name: account.name });
       }
       return account.id;
     };
@@ -718,19 +720,19 @@ export async function approveClaim(db: Db, claimId: number, approver: AuthUser, 
       if (!companyAccountId) {
         throw new AppError(
           422,
-          `報銷單 #${claimId} 是公司支付（公司卡／公司帳戶），核准時請指定付款科目` +
-            `（現金科目，或公司卡的負債科目）`,
+          "報銷單 #{id} 是公司支付（公司卡／公司帳戶），核准時請指定付款科目（現金科目，或公司卡的負債科目）",
+          { id: claimId },
         );
       }
       const rows = await tx.select().from(schema.accounts).where(eq(schema.accounts.id, companyAccountId));
       const acct = rows[0];
-      if (!acct) throw new AppError(404, `科目不存在: ${companyAccountId}`);
-      if (!acct.active) throw new AppError(400, `科目已停用，不可再過帳: ${acct.code} ${acct.name}`);
+      if (!acct) throw new AppError(404, "科目不存在: {id}", { id: companyAccountId });
+      if (!acct.active) throw new AppError(400, "科目已停用，不可再過帳: {code} {name}", { code: acct.code, name: acct.name });
       if (!acct.isCash && acct.type !== "liability") {
         throw new AppError(
           422,
-          `${acct.code} ${acct.name} 不能當公司支付的付款科目——請選現金科目（公司帳戶）` +
-            `或負債科目（公司信用卡的應付卡費）`,
+          "{code} {name} 不能當公司支付的付款科目——請選現金科目（公司帳戶）或負債科目（公司信用卡的應付卡費）",
+          { code: acct.code, name: acct.name },
         );
       }
       creditAccountId = acct.id;
@@ -784,7 +786,7 @@ export async function approveClaim(db: Db, claimId: number, approver: AuthUser, 
 export async function rejectClaim(db: Db, claimId: number, reason: string, rejecter: AuthUser) {
   return db.transaction(async (tx) => {
     const claim = await requireClaim(tx, claimId);
-    if (claim.status !== "submitted") throw new AppError(409, `報銷單狀態不可退回: ${claim.status}`);
+    if (claim.status !== "submitted") throw new AppError(409, "報銷單狀態不可退回: {status}", { status: claim.status });
     assertNotSelf(rejecter, claim.employeeId, "退回");
     const [updated] = await tx
       .update(schema.expenseClaims)
@@ -799,11 +801,11 @@ export async function rejectClaim(db: Db, claimId: number, reason: string, rejec
 export async function payClaim(db: Db, claimId: number, accountId: number, payDate?: string) {
   return db.transaction(async (tx) => {
     const claim = await requireClaim(tx, claimId);
-    if (claim.status !== "approved") throw new AppError(409, `報銷單狀態不可付款: ${claim.status}`);
+    if (claim.status !== "approved") throw new AppError(409, "報銷單狀態不可付款: {status}", { status: claim.status });
     // 0036：作廢後 status 保持原值（「它曾被核准」是事實），所以付款要另擋 voided_at——
     // 不擋的話，作廢的單照樣付得出錢，反向傳票只沖了費用、錢卻真的出去了
     if (claim.voidedAt) {
-      throw new AppError(409, `報銷單 #${claimId} 已作廢（理由：${claim.voidReason ?? "未記錄"}），不可付款`);
+      throw new AppError(409, "報銷單 #{id} 已作廢（理由：{reason}），不可付款", { id: claimId, reason: claim.voidReason ?? "未記錄" });
     }
     // R2：付款日同樣擋「不合理的未來」——payDate 2030 會落進 2030 年度的帳，追都追不到
     // 傳票的 entry_date 也是 date 欄位：日曆上不存在的付款日同樣要在這裡擋成 422，不是 500
@@ -812,17 +814,17 @@ export async function payClaim(db: Db, claimId: number, accountId: number, payDa
     await assertPeriodOpen(tx, payDate ?? new Date().toISOString().slice(0, 10));
     const accounts = await tx.select().from(schema.accounts);
     const cash = accounts.find((a) => a.id === accountId);
-    if (!cash) throw new AppError(404, `科目不存在: ${accountId}`);
+    if (!cash) throw new AppError(404, "科目不存在: {id}", { id: accountId });
     // 與收付款單同一條規則：必須是現金科目，否則付出去的錢不會進現金流量表（見 ledger.ts createCashDoc）
     if (!cash.isCash) {
       throw new AppError(
         422,
-        `${cash.code} ${cash.name} 不是現金科目，不能當付款科目` +
-          `（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，付出的錢才會進現金流量表）`,
+        "{code} {name} 不是現金科目，不能當付款科目（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，付出的錢才會進現金流量表）",
+        { code: cash.code, name: cash.name },
       );
     }
     // 與手工傳票／收付款單同一條規則：停用的科目不得再過帳（付款科目由使用者從下拉選，可能是自建的銀行科目）
-    if (!cash.active) throw new AppError(400, `科目已停用，不可再過帳: ${cash.code} ${cash.name}`);
+    if (!cash.active) throw new AppError(400, "科目已停用，不可再過帳: {code} {name}", { code: cash.code, name: cash.name });
     const otherPayableId = accounts.find((a) => a.code === ACCOUNT.OTHER_PAYABLE)!.id;
 
     const [employee] = await tx.select().from(schema.employees).where(eq(schema.employees.id, claim.employeeId));
@@ -1021,8 +1023,8 @@ export async function getClaimItemImage(db: Db, claimId: number, itemId: number)
     .select()
     .from(schema.expenseItems)
     .where(and(eq(schema.expenseItems.id, itemId), eq(schema.expenseItems.claimId, claimId)));
-  if (!item) throw new AppError(404, `報銷明細不存在: 單 #${claimId} 明細 #${itemId}`);
-  if (!item.image) throw new AppError(404, `報銷明細 #${itemId} 沒有憑證影像`);
+  if (!item) throw new AppError(404, "報銷明細不存在: 單 #{claimId} 明細 #{itemId}", { claimId, itemId });
+  if (!item.image) throw new AppError(404, "報銷明細 #{itemId} 沒有憑證影像", { itemId });
   return {
     claim,
     fileName: `報銷單${claimId}-明細${itemId}${item.invoiceNumber ? `-${item.invoiceNumber}` : ""}`,

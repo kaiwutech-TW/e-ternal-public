@@ -23,12 +23,12 @@ export interface MemoryInput {
 
 function assertShape(input: MemoryInput): void {
   if (!SLUG.test(input.name)) {
-    throw new AppError(422, `記憶代號須為 kebab-case 英數（2-64 字，如 saturday-is-restday），收到「${input.name}」`);
+    throw new AppError(422, "記憶代號須為 kebab-case 英數（2-64 字，如 saturday-is-restday），收到「{raw}」", { raw: input.name });
   }
   if (!input.title.trim()) throw new AppError(422, "記憶必須有一行摘要（title）——索引只放摘要，寫得好壞決定助理找不找得到");
   if (!input.body.trim()) throw new AppError(422, "記憶內容（body）不可為空");
   if (input.staleAfter != null && !/^\d{4}-\d{2}-\d{2}$/.test(input.staleAfter)) {
-    throw new AppError(422, `到期日格式須為 YYYY-MM-DD（收到「${input.staleAfter}」）`);
+    throw new AppError(422, "到期日格式須為 YYYY-MM-DD（收到「{raw}」）", { raw: input.staleAfter });
   }
 }
 
@@ -42,7 +42,7 @@ export async function createMemory(
 ) {
   assertShape(input);
   const [dup] = await db.select({ id: schema.agentMemories.id }).from(schema.agentMemories).where(eq(schema.agentMemories.name, input.name));
-  if (dup) throw new AppError(409, `記憶代號已存在: ${input.name}（要修改內容請編輯既有那一條）`);
+  if (dup) throw new AppError(409, "記憶代號已存在: {name}（要修改內容請編輯既有那一條）", { name: input.name });
   const [row] = await db
     .insert(schema.agentMemories)
     .values({
@@ -85,9 +85,9 @@ export async function updateMemory(
   patch: { title?: string | undefined; body?: string | undefined; type?: string | undefined; tags?: string | undefined; staleAfter?: string | null | undefined },
 ) {
   const [row] = await db.select().from(schema.agentMemories).where(eq(schema.agentMemories.id, id));
-  if (!row) throw new AppError(404, `記憶不存在: ${id}`);
+  if (!row) throw new AppError(404, "記憶不存在: {id}", { id });
   if (patch.staleAfter != null && !/^\d{4}-\d{2}-\d{2}$/.test(patch.staleAfter)) {
-    throw new AppError(422, `到期日格式須為 YYYY-MM-DD（收到「${patch.staleAfter}」）`);
+    throw new AppError(422, "到期日格式須為 YYYY-MM-DD（收到「{raw}」）", { raw: patch.staleAfter });
   }
   const [updated] = await db
     .update(schema.agentMemories)
@@ -106,8 +106,8 @@ export async function updateMemory(
 
 export async function approveMemory(db: Db, id: number, userId: number) {
   const [row] = await db.select().from(schema.agentMemories).where(eq(schema.agentMemories.id, id));
-  if (!row) throw new AppError(404, `記憶不存在: ${id}`);
-  if (row.status !== "proposed") throw new AppError(422, `只有「待核准」的記憶可以核准（目前狀態: ${row.status}）`);
+  if (!row) throw new AppError(404, "記憶不存在: {id}", { id });
+  if (row.status !== "proposed") throw new AppError(422, "只有「待核准」的記憶可以核准（目前狀態: {status}）", { status: row.status });
   const [updated] = await db
     .update(schema.agentMemories)
     .set({ status: "active", approvedBy: userId, updatedAt: new Date() })
@@ -123,13 +123,13 @@ export async function archiveMemory(db: Db, id: number) {
     .set({ status: "archived", updatedAt: new Date() })
     .where(eq(schema.agentMemories.id, id))
     .returning();
-  if (!updated) throw new AppError(404, `記憶不存在: ${id}`);
+  if (!updated) throw new AppError(404, "記憶不存在: {id}", { id });
   return updated;
 }
 
 export async function deleteMemory(db: Db, id: number) {
   const [row] = await db.select().from(schema.agentMemories).where(eq(schema.agentMemories.id, id));
-  if (!row) throw new AppError(404, `記憶不存在: ${id}`);
+  if (!row) throw new AppError(404, "記憶不存在: {id}", { id });
   if (row.status !== "proposed") {
     throw new AppError(422, "只有「待核准」的記憶可以刪除；已生效的請用封存——狀態是歷史的一部分，不刪列");
   }

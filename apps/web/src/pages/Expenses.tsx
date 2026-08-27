@@ -5,6 +5,7 @@ import { CategorySuggestions } from "../CategorySuggestions.tsx";
 import { useAuth } from "../auth.ts";
 import { readReceiptImage, type EInvoiceQr, type EInvoiceQrScan } from "../einvoice-qr.ts";
 import { fmt, useFetch, useListFetch } from "../hooks.ts";
+import { t, useT } from "../i18n.ts";
 import type { Account, ClaimPayableSummary, Employee, ExpenseCategory, ExpenseClaimRow, ExpenseItemRow } from "../types.ts";
 import { EmptyState, ListFilterBar, useNav, TaxNotes, pickTaxNotes } from "../ui.tsx";
 
@@ -83,28 +84,19 @@ export function scanAdvice(scan: Pick<EInvoiceQrScan, "reason" | "lefts">): stri
   switch (scan.reason) {
     case "ambiguous":
       return (
-        `照片已存，但這張照片裡有不只一張發票（掃到 ${scan.lefts.length} 個電子發票 QR 左碼）——請一張一張拍，一張照片只放一張發票。` +
-        `系統不替你挑一張：挑錯就是把另一張發票的號碼與金額安到這筆明細上，而畫面上看不出來。` +
-        `這一筆的發票欄位先留空，重拍上傳後會重新辨識。`
+        t("照片已存，但這張照片裡有不只一張發票（掃到 {n} 個電子發票 QR 左碼）——請一張一張拍，一張照片只放一張發票。系統不替你挑一張：挑錯就是把另一張發票的號碼與金額安到這筆明細上，而畫面上看不出來。這一筆的發票欄位先留空，重拍上傳後會重新辨識。", { n: scan.lefts.length })
       );
     case "not-einvoice":
       return (
-        "照片已存，但掃到的 QR 裡沒有電子發票證明聯的左碼——發票號碼、日期、金額都在「左邊」那個 QR 裡，" +
-        "這張可能只拍到右邊那個（右碼放的是品項明細的接續），也可能掃到的是別的 QR。" +
-        "請把左邊那個 QR 一起拍進去、拍大一點正一點，再上傳一次。" +
-        "這張本來就不是電子發票的話，直接手動填金額即可：這筆的發票欄位留空、先不勾可扣抵，" +
-        "可扣抵性由伺服端依你的稅法參數與憑證判定。"
+        t("照片已存，但掃到的 QR 裡沒有電子發票證明聯的左碼——發票號碼、日期、金額都在「左邊」那個 QR 裡，這張可能只拍到右邊那個（右碼放的是品項明細的接續），也可能掃到的是別的 QR。請把左邊那個 QR 一起拍進去、拍大一點正一點，再上傳一次。這張本來就不是電子發票的話，直接手動填金額即可：這筆的發票欄位留空、先不勾可扣抵，可扣抵性由伺服端依你的稅法參數與憑證判定。")
       );
     case "no-qr":
       return (
-        "照片已存，但整張影像解過一次之後沒有解出任何 QR——請手動填金額：這筆的發票欄位留空、先不勾可扣抵，" +
-        "可扣抵性由伺服端依你的稅法參數與憑證判定。" +
-        "解不出來多半是 QR 太小、太糊或反光（辨識讀的是整張影像，不是只看某幾塊）：" +
-        "這張如果是電子發票，把左邊那個 QR 拍大一點、正一點再試一次。"
+        t("照片已存，但整張影像解過一次之後沒有解出任何 QR——請手動填金額：這筆的發票欄位留空、先不勾可扣抵，可扣抵性由伺服端依你的稅法參數與憑證判定。解不出來多半是 QR 太小、太糊或反光（辨識讀的是整張影像，不是只看某幾塊）：這張如果是電子發票，把左邊那個 QR 拍大一點、正一點再試一次。")
       );
     case "ok":
       // 走不到（reason 是 ok 就代表左碼欄位解出來了）；真的走到就是系統內部不一致，照實說
-      return "掃到電子發票 QR，但欄位沒解出來——請手動填金額，並把這張照片回報給維護者。";
+      return t("掃到電子發票 QR，但欄位沒解出來——請手動填金額，並把這張照片回報給維護者。");
   }
 }
 
@@ -133,15 +125,15 @@ export function scannedItemPatch(qr: EInvoiceQr, left: string, companyTaxId: str
     deductible: buyerOk,
     qrIssue: false,
     qrNote:
-      `已辨識：發票 ${qr.invoiceNumber}（${qr.invoiceDate}）$${fmt(qr.totalAmount)}。` +
+      t("已辨識：發票 {no}（{date}）${amount}。", { no: qr.invoiceNumber, date: qr.invoiceDate, amount: fmt(qr.totalAmount) }) +
       (buyerOk
-        ? "QR 上的買方統編與公司基本檔相同，這筆先勾可扣抵。"
+        ? t("QR 上的買方統編與公司基本檔相同，這筆先勾可扣抵。")
         : companyTaxId === null
-          ? "公司基本檔還沒填統編，這裡沒有東西可以比對，這筆先不勾可扣抵。"
+          ? t("公司基本檔還沒填統編，這裡沒有東西可以比對，這筆先不勾可扣抵。")
           : qr.buyerTaxId
-            ? `QR 上的買方統編是 ${qr.buyerTaxId}、公司基本檔是 ${companyTaxId}，兩者不同，這筆先不勾可扣抵。`
-            : "QR 上沒有買方統編，這筆先不勾可扣抵。") +
-      "送出後由伺服端自己解析這張 QR 的原文、自己比對買方統編，並依你在「稅法參數」頁設定的值決定落地的稅額。",
+            ? t("QR 上的買方統編是 {buyer}、公司基本檔是 {company}，兩者不同，這筆先不勾可扣抵。", { buyer: qr.buyerTaxId, company: companyTaxId })
+            : t("QR 上沒有買方統編，這筆先不勾可扣抵。")) +
+      t("送出後由伺服端自己解析這張 QR 的原文、自己比對買方統編，並依你在「稅法參數」頁設定的值決定落地的稅額。"),
   };
 }
 
@@ -195,8 +187,7 @@ export function clearedQrResultPatch(): Partial<DraftItem> {
     deductible: false,
     qrIssue: true,
     qrNote:
-      "已清除這張憑證的辨識結果：發票欄位與金額改以你填的為準，伺服端不會再拿那張 QR 的原文跟你填的內容交叉核對，" +
-      "這筆也不再主張可扣抵。要恢復辨識請重新上傳這張憑證的照片。",
+      t("已清除這張憑證的辨識結果：發票欄位與金額改以你填的為準，伺服端不會再拿那張 QR 的原文跟你填的內容交叉核對，這筆也不再主張可扣抵。要恢復辨識請重新上傳這張憑證的照片。"),
   };
 }
 
@@ -386,29 +377,31 @@ export function batchSelectionIssue(
   const total = existingImageCount + files.length;
   if (total > MAX_BATCH_IMAGES) {
     return (
-      `一次最多 ${MAX_BATCH_IMAGES} 張：這張單上已經有 ${existingImageCount} 張帶著照片的明細，` +
-      `這次又選了 ${files.length} 張，加起來 ${total} 張。` +
-      `張數是這樣來的——收據縮圖是 base64 存進資料庫、跟著同一個 POST 一起送，` +
-      `實測最大的一張是 ${Math.round(THUMB_BASE64_BYTES_WORST / 1024)} KB，單次送出的預算 ${mb(POST_BUDGET_BYTES)}，` +
-      `所以 ${MAX_BATCH_IMAGES} 張是「一定塞得下」的張數——縮圖會縮成多大要等真的縮出來才知道，` +
-      `這裡只能取保守值。請分批送出（先送這 ${MAX_BATCH_IMAGES} 張，核准與否互不影響）。`
+      t(
+        "一次最多 {max} 張：這張單上已經有 {existing} 張帶著照片的明細，這次又選了 {picked} 張，加起來 {total} 張。張數是這樣來的——收據縮圖是 base64 存進資料庫、跟著同一個 POST 一起送，實測最大的一張是 {worstKb} KB，單次送出的預算 {budget}，所以 {max} 張是「一定塞得下」的張數——縮圖會縮成多大要等真的縮出來才知道，這裡只能取保守值。請分批送出（先送這 {max} 張，核准與否互不影響）。",
+        {
+          max: MAX_BATCH_IMAGES,
+          existing: existingImageCount,
+          picked: files.length,
+          total,
+          worstKb: Math.round(THUMB_BASE64_BYTES_WORST / 1024),
+          budget: mb(POST_BUDGET_BYTES),
+        },
+      )
     );
   }
   const tooBig = files.find((f) => f.size > MAX_SOURCE_BYTES_PER_FILE);
   if (tooBig) {
     const [got, cap] = mbPair(tooBig.size, MAX_SOURCE_BYTES_PER_FILE);
     return (
-      `「${tooBig.name}」是 ${got}，超過單張 ${cap} 的上限。` +
-      `辨識要把整張照片展開成未壓縮的像素（約是檔案的十幾倍），這一張展開後會把分頁的記憶體吃光。` +
-      `請用手機相簿的「縮小尺寸」或截圖後再上傳。`
+      t("「{name}」是 {got}，超過單張 {cap} 的上限。辨識要把整張照片展開成未壓縮的像素（約是檔案的十幾倍），這一張展開後會把分頁的記憶體吃光。請用手機相簿的「縮小尺寸」或截圖後再上傳。", { name: tooBig.name, got, cap })
     );
   }
   const sum = files.reduce((s, f) => s + f.size, 0);
   if (sum > MAX_SOURCE_BYTES_TOTAL) {
     const [got, cap] = mbPair(sum, MAX_SOURCE_BYTES_TOTAL);
     return (
-      `這次選的 ${files.length} 張加起來 ${got}，超過單批 ${cap} 的上限。` +
-      `這一批是一張一張依序辨識的，這個大小大概要跑十幾秒以上。請分成兩批選。`
+      t("這次選的 {n} 張加起來 {got}，超過單批 {cap} 的上限。這一批是一張一張依序辨識的，這個大小大概要跑十幾秒以上。請分成兩批選。", { n: files.length, got, cap })
     );
   }
   return null;
@@ -428,10 +421,7 @@ export function batchSelectionIssue(
  */
 export function blankSurfaceAdvice(): string {
   return (
-    "照片已存，但辨識時從畫布取回的像素整片同色（一個像素的差別都沒有，等於什麼影像內容都沒拿到）——" +
-    "這張照片的解析度可能超過瀏覽器單張畫布能處理的上限，於是取回的是空白而不是照片，系統因此看不到上面的 QR。" +
-    "請改用截圖、或用較小的尺寸重拍一次再上傳；這一筆的發票欄位先留空、金額請手動填。" +
-    "系統不自動把照片縮小再試：縮小會糊掉小的 QR，那會把「掃不到」換成「掃錯一張」，後者在畫面上看不出來。"
+    t("照片已存，但辨識時從畫布取回的像素整片同色（一個像素的差別都沒有，等於什麼影像內容都沒拿到）——這張照片的解析度可能超過瀏覽器單張畫布能處理的上限，於是取回的是空白而不是照片，系統因此看不到上面的 QR。請改用截圖、或用較小的尺寸重拍一次再上傳；這一筆的發票欄位先留空、金額請手動填。系統不自動把照片縮小再試：縮小會糊掉小的 QR，那會把「掃不到」換成「掃錯一張」，後者在畫面上看不出來。")
   );
 }
 
@@ -603,14 +593,15 @@ export function batchOutcomeMessage(brought: DraftItem[], skipped: string[]): st
   const unreadable = brought.filter((l) => !l.image).length;
   const withContent = brought.length - unreadable;
   const unreadableClause = unreadable
-    ? `，另有 ${unreadable} 張沒有讀進來（畫面上各留了一列寫著原因——要留就自己填金額與分類，不要就按「刪除這筆」）`
+    ? t("，另有 {n} 張沒有讀進來（畫面上各留了一列寫著原因——要留就自己填金額與分類，不要就按「刪除這筆」）", { n: unreadable })
     : "";
-  const tail = "有底色標記的那幾筆是沒有辨識成功的，訊息裡寫著原因。";
+  const tail = t("有底色標記的那幾筆是沒有辨識成功的，訊息裡寫著原因。");
   return skipped.length
-    ? `這批帶了 ${withContent} 張${unreadableClause}，其餘 ${skipped.length} 張因為總量超過上限沒有帶入` +
-        `（${skipped.join("、")}）——收據縮圖跟著同一個 POST 一起送，這一批的縮圖加起來已經到` +
-        `單次送出的預算（${mb(POST_BUDGET_BYTES)}）。請先把這批送出，再選剩下的那幾張。${tail}`
-    : `已帶入 ${withContent} 張${unreadableClause}——${tail}`;
+    ? t(
+        "這批帶了 {n} 張{unreadableClause}，其餘 {skipped} 張因為總量超過上限沒有帶入（{names}）——收據縮圖跟著同一個 POST 一起送，這一批的縮圖加起來已經到單次送出的預算（{budget}）。請先把這批送出，再選剩下的那幾張。{tail}",
+        { n: withContent, unreadableClause, skipped: skipped.length, names: skipped.join(t("、")), budget: mb(POST_BUDGET_BYTES), tail },
+      )
+    : t("已帶入 {n} 張{unreadableClause}——{tail}", { n: withContent, unreadableClause, tail });
 }
 
 export async function buildBatchItems<F extends { name: string }>(
@@ -635,7 +626,7 @@ export async function buildBatchItems<F extends { name: string }>(
     if (l.invoiceNumber && !seen.has(l.invoiceNumber)) seen.set(l.invoiceNumber, where);
     bytes += l.image?.length ?? 0;
   };
-  for (const l of ctx.existing) absorb(l, "表單上已經有的明細");
+  for (const l of ctx.existing) absorb(l, t("表單上已經有的明細"));
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!;
@@ -663,14 +654,12 @@ export async function buildBatchItems<F extends { name: string }>(
             image: r.image,
             qrIssue: true,
             qrNote:
-              `${file.name}：掃到的發票號碼 ${r.qr.invoiceNumber} 與${where}相同，` +
-              `同一個發票號碼在同一張報銷單上只能有一筆——這一筆的發票欄位與金額沒有帶入。` +
-              `重複選到同一個檔案就把這一筆刪掉；確定是兩張不同的發票就自己填，並回報給維護者。`,
+              t("{file}：掃到的發票號碼 {no} 與{where}相同，同一個發票號碼在同一張報銷單上只能有一筆——這一筆的發票欄位與金額沒有帶入。重複選到同一個檔案就把這一筆刪掉；確定是兩張不同的發票就自己填，並回報給維護者。", { file: file.name, no: r.qr.invoiceNumber, where }),
           };
         } else {
-          seen.set(r.qr.invoiceNumber, `這一批的「${file.name}」`);
+          seen.set(r.qr.invoiceNumber, t("這一批的「{file}」", { file: file.name }));
           const patch = scannedItemPatch(r.qr, r.scan.left, ctx.companyTaxId);
-          item = { ...EMPTY_ITEM, image: r.image, ...patch, qrNote: `${file.name}：${patch.qrNote}` };
+          item = { ...EMPTY_ITEM, image: r.image, ...patch, qrNote: t("{file}：{note}", { file: file.name, note: patch.qrNote }) };
         }
       } else {
         item = {
@@ -681,7 +670,7 @@ export async function buildBatchItems<F extends { name: string }>(
           // 跟單張上傳那條路走同一支，兩邊不會有一邊寫成 undefined。
           ...clearedByNewImage(false),
           qrIssue: true,
-          qrNote: `${file.name}：${scanFailureNote(r.scan, r.uniformSurface)}`,
+          qrNote: t("{file}：{note}", { file: file.name, note: scanFailureNote(r.scan, r.uniformSurface) }),
         };
       }
     } catch (e) {
@@ -689,8 +678,7 @@ export async function buildBatchItems<F extends { name: string }>(
         ...EMPTY_ITEM,
         qrIssue: true,
         qrNote:
-          `${file.name}：這張沒有讀進來（${(e as Error).message}），照片與發票欄位都是空的。` +
-          `同一批的其他張不受影響。這一筆要留就自己填金額與分類，不要就按「刪除這筆」。`,
+          t("{file}：這張沒有讀進來（{reason}），照片與發票欄位都是空的。同一批的其他張不受影響。這一筆要留就自己填金額與分類，不要就按「刪除這筆」。", { file: file.name, reason: (e as Error).message }),
       };
     }
     out.push(item);
@@ -698,7 +686,7 @@ export async function buildBatchItems<F extends { name: string }>(
     // 第一張讀不進來 ⇒ 使用者原本那一列留著（firstRowPlacement 說 insert），
     // 所以從第二張開始，它跟其餘各列一樣要占名額。讀得進來時它已經被換掉，不占。
     if (i === 0 && ctx.replacing && firstRowPlacement(item) === "insert") {
-      absorb(ctx.replacing, "表單上已經有的明細");
+      absorb(ctx.replacing, t("表單上已經有的明細"));
     }
   }
   return { items: out, skipped: [] };
@@ -770,6 +758,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function Expenses() {
+  const t = useT();
   const me = useAuth();
   // 財務/管理者可代他人報銷並審核；其他角色一律以登入身分報銷
   const privileged = me.role === "finance" || me.role === "admin";
@@ -937,16 +926,16 @@ export function Expenses() {
   const clearQrResult = (i: number) => {
     setQrMismatch(false);
     setError(null);
-    setOk("已清除這筆的辨識結果，請再按一次送出");
+    setOk(t("已清除這筆的辨識結果，請再按一次送出"));
     setItem(i, clearedQrResultPatch());
   };
 
   const submit = async () => {
     try {
-      if (!editingClaim && privileged && !employeeId && !me.employeeId) throw new Error("請選擇報銷人");
-      if (!editingClaim && !privileged && !me.employeeId) throw new Error("你的帳號尚未連結員工主檔，請請管理者到「設定」頁連結");
+      if (!editingClaim && privileged && !employeeId && !me.employeeId) throw new Error(t("請選擇報銷人"));
+      if (!editingClaim && !privileged && !me.employeeId) throw new Error(t("你的帳號尚未連結員工主檔，請請管理者到「設定」頁連結"));
       const validItems = claimItemsPayload(items);
-      if (!validItems.length) throw new Error("至少一筆有效明細（選分類、填金額）");
+      if (!validItems.length) throw new Error(t("至少一筆有效明細（選分類、填金額）"));
       const payload = { claimDate, paidBy, items: validItems };
       // R11：修改被退回的單走 PATCH（明細整批換掉、回 submitted）；memo 原樣保留
       const created = editingClaim
@@ -956,7 +945,7 @@ export function Expenses() {
       setError(null);
       setTaxConflict(null);
       setQrMismatch(false);
-      setOk(editingClaim ? `報銷單 #${editingClaim.id} 已修改重送，等會計核准` : "報銷已送出，等會計核准");
+      setOk(editingClaim ? t("報銷單 #{id} 已修改重送，等會計核准", { id: editingClaim.id }) : t("報銷已送出，等會計核准"));
       setItems([{ ...EMPTY_ITEM }]);
       setEditingClaim(null);
       setPaidBy("employee");
@@ -982,7 +971,7 @@ export function Expenses() {
     setItems((ls) => ls.map((l) => (l.invoiceNumber === invoiceNumber ? { ...l, taxSource: source } : l)));
     setTaxConflict(null);
     setError(null);
-    setOk(`已記下發票 ${invoiceNumber} 要用「${TAX_SOURCE_LABEL[source]}」的稅額，請再按一次送出`);
+    setOk(t("已記下發票 {no} 要用「{source}」的稅額，請再按一次送出", { no: invoiceNumber, source: t(TAX_SOURCE_LABEL[source]) }));
   };
 
   /** R11：把被退回的單載回表單（含已上傳的收據影像——不必重新上傳同一張照片） */
@@ -1014,7 +1003,7 @@ export function Expenses() {
             ...(taxSource ? { taxSource } : {}),
             deductible: it.deductible,
             qrIssue: false,
-            qrNote: it.image ? "已帶入原單的收據影像（要換再重新上傳即可）" : null,
+            qrNote: it.image ? t("已帶入原單的收據影像（要換再重新上傳即可）") : null,
           };
         }),
       );
@@ -1051,46 +1040,45 @@ export function Expenses() {
       <TaxNotes notes={taxNotes} />
 
       <div className="card">
-        <h3>{editingClaim ? `修改被退回的報銷單 #${editingClaim.id}（送出後重新送審）` : "我要報銷（拍照或選檔，電子發票會自動辨識）"}</h3>
+        <h3>{editingClaim ? t("修改被退回的報銷單 #{id}（送出後重新送審）", { id: editingClaim.id }) : t("我要報銷（拍照或選檔，電子發票會自動辨識）")}</h3>
         {editingClaim && (
           <div style={{ fontSize: 13, color: "var(--amber)", marginBottom: 8 }}>
-            原單明細（含收據影像）已帶入，改完按送出即回到待核准。{" "}
-            <button className="small" onClick={() => { setEditingClaim(null); setItems([{ ...EMPTY_ITEM }]); setPaidBy("employee"); }}>取消修改</button>
+            {t("原單明細（含收據影像）已帶入，改完按送出即回到待核准。")}{" "}
+            <button className="small" onClick={() => { setEditingClaim(null); setItems([{ ...EMPTY_ITEM }]); setPaidBy("employee"); }}>{t("取消修改")}</button>
           </div>
         )}
         <form className="inline" onSubmit={(e) => e.preventDefault()}>
           {editingClaim ? null : privileged ? (
             <label className="field">
-              報銷人（可代同事送件）
+              {t("報銷人（可代同事送件）")}
               <select value={employeeId} onChange={(e) => setEmployeeId(Number(e.target.value))}>
-                <option value={0}>— 本人 —</option>
+                <option value={0}>{t("— 本人 —")}</option>
                 {employees.data?.filter((emp) => emp.active).map((emp) => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
               </select>
             </label>
           ) : (
-            <span className="field" style={{ alignSelf: "center" }}>報銷人：{me.displayName}</span>
+            <span className="field" style={{ alignSelf: "center" }}>{t("報銷人：{name}", { name: me.displayName })}</span>
           )}
-          <label className="field">日期<input type="date" value={claimDate} onChange={(e) => setClaimDate(e.target.value)} /></label>
+          <label className="field">{t("日期")}<input type="date" value={claimDate} onChange={(e) => setClaimDate(e.target.value)} /></label>
           {/* R13：公司卡付的費用也要從這裡報，進項稅才會進 401——不走報銷、開手工傳票的話，
               可扣抵稅額一毛都進不了申報 */}
           <label className="field">
-            誰先出的錢
+            {t("誰先出的錢")}
             <select value={paidBy} onChange={(e) => setPaidBy(e.target.value as "employee" | "company")}>
-              <option value="employee">員工代墊（核准後公司付款還我）</option>
-              <option value="company">公司支付（公司卡／公司帳戶，不必還款）</option>
+              <option value="employee">{t("員工代墊（核准後公司付款還我）")}</option>
+              <option value="company">{t("公司支付（公司卡／公司帳戶，不必還款）")}</option>
             </select>
           </label>
         </form>
         {paidBy === "company" && (
           <div style={{ fontSize: 13, color: "var(--accent)", marginTop: 4 }}>
-            公司卡或公司帳戶付的費用也要從這裡報，進項稅才會進 401 申報。核准時由財務指定付款科目
-            （現金科目或公司卡的負債科目），核准即入帳完成，不再有付款步驟。
+            {t("公司卡或公司帳戶付的費用也要從這裡報，進項稅才會進 401 申報。核准時由財務指定付款科目（現金科目或公司卡的負債科目），核准即入帳完成，不再有付款步驟。")}
           </div>
         )}
         {!privileged && !me.employeeId && (
-          <div className="error" style={{ marginTop: 8 }}>你的帳號尚未連結員工主檔，送出會失敗——請請管理者到「設定」頁的使用者管理連結員工。</div>
+          <div className="error" style={{ marginTop: 8 }}>{t("你的帳號尚未連結員工主檔，送出會失敗——請請管理者到「設定」頁的使用者管理連結員工。")}</div>
         )}
         {/* ★ 批次期間**整列都鎖住**（下面每一個 select／input／button 都吃 batchProgress）。
             理由：所有寫進明細的動作都是 index-based（setItem(i, …)、removeItem(i)），
@@ -1105,7 +1093,7 @@ export function Expenses() {
           <div key={i} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
             <form className="inline" onSubmit={(e) => e.preventDefault()}>
               <label className="field">
-                單據照片
+                {t("單據照片")}
                 {/* multiple：整疊報帳一次選完。選同一批檔案第二次也要能觸發，所以取完 File 之後把
                     input 的 value 清掉（不清的話瀏覽器認為「值沒變」而不發 change） */}
                 <input
@@ -1121,22 +1109,22 @@ export function Expenses() {
                 />
               </label>
               <label className="field">
-                這筆是什麼
+                {t("這筆是什麼")}
                 <select disabled={!!batchProgress} value={l.accountCode} onChange={(e) => setItem(i, { accountCode: e.target.value })}>
-                  <option value="">— 請選擇 —</option>
+                  <option value="">{t("— 請選擇 —")}</option>
                   {categories.data?.map((c) => (
-                    <option key={c.accountCode} value={c.accountCode}>{c.label}（{c.hint}）</option>
+                    <option key={c.accountCode} value={c.accountCode}>{t("{label}（{hint}）", { label: c.label, hint: c.hint })}</option>
                   ))}
                 </select>
               </label>
               {/* 改了總額，先前針對「兩個稅額來源」做的選擇就是對著另一個數字做的，必須作廢重問 */}
-              <label className="field">金額（發票上的總額）<input disabled={!!batchProgress} type="number" min={0} value={l.amount} onChange={(e) => setItem(i, { amount: Number(e.target.value), ...clearedTaxSource() })} /></label>
-              <label className="field">說明（選填）<input disabled={!!batchProgress} value={l.description} onChange={(e) => setItem(i, { description: e.target.value })} /></label>
+              <label className="field">{t("金額（發票上的總額）")}<input disabled={!!batchProgress} type="number" min={0} value={l.amount} onChange={(e) => setItem(i, { amount: Number(e.target.value), ...clearedTaxSource() })} /></label>
+              <label className="field">{t("說明（選填）")}<input disabled={!!batchProgress} value={l.description} onChange={(e) => setItem(i, { description: e.target.value })} /></label>
               {items.length > 1 && (
                 <button disabled={!!batchProgress} className="small" onClick={() => removeItem(i)}>刪除這筆</button>
               )}
               {i === items.length - 1 && (
-                <button disabled={!!batchProgress} className="small" onClick={() => setItems((ls) => [...ls, { ...EMPTY_ITEM }])}>＋再加一張</button>
+                <button disabled={!!batchProgress} className="small" onClick={() => setItems((ls) => [...ls, { ...EMPTY_ITEM }])}>{t("＋再加一張")}</button>
               )}
             </form>
             {l.qrNote && (
@@ -1160,12 +1148,10 @@ export function Expenses() {
                 但沒有出路——沒有這個按鈕，使用者只剩「重傳一張沒有 QR 的照片」或「把金額改成 0」。 */}
             {l.qrPayload && (
               <div style={{ fontSize: 13, marginTop: 4, color: qrMismatch ? "var(--amber)" : "var(--text-2)" }}>
-                這筆帶著掃到的發票 QR 原文（伺服端從它導出進項稅額，並核對發票號碼／日期／賣方統編／總額四欄）。
+                {t("這筆帶著掃到的發票 QR 原文（伺服端從它導出進項稅額，並核對發票號碼／日期／賣方統編／總額四欄）。")}
                 {qrMismatch && (
                   <strong>
-                    　剛才送出被伺服端擋下（422）：這四欄裡有欄位與 QR 對不起來（上面那行寫的是哪一欄、兩邊各是什麼）。
-                    兩條路——把欄位改回 QR 上的數字，或按這裡清掉這張憑證的辨識結果、改用你自己填的
-                    （清掉之後這筆不再主張可扣抵）：
+                    {t("　剛才送出被伺服端擋下（422）：這四欄裡有欄位與 QR 對不起來（上面那行寫的是哪一欄、兩邊各是什麼）。兩條路——把欄位改回 QR 上的數字，或按這裡清掉這張憑證的辨識結果、改用你自己填的（清掉之後這筆不再主張可扣抵）：")}
                   </strong>
                 )}{" "}
                 <button disabled={!!batchProgress} className="small" onClick={() => clearQrResult(i)}>清除這張憑證的辨識結果</button>
@@ -1176,26 +1162,24 @@ export function Expenses() {
             {taxConflict && taxConflict.invoiceNumber === l.invoiceNumber && (
               <div className="error" style={{ marginTop: 4 }}>
                 <div>
-                  這張發票的進項稅額有兩個來源、數字不一樣，請選一個（沒選就不送出——系統不替你決定哪個數字進 401）：
+                  {t("這張發票的進項稅額有兩個來源、數字不一樣，請選一個（沒選就不送出——系統不替你決定哪個數字進 401）：")}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
                   <button disabled={!!batchProgress} className="small" onClick={() => chooseTaxSource(taxConflict.invoiceNumber, "voucher")}>
-                    {TAX_SOURCE_LABEL.voucher}：{fmt(taxConflict.voucherTax)} 元
+                    {t("{source}：{amount} 元", { source: t(TAX_SOURCE_LABEL.voucher), amount: fmt(taxConflict.voucherTax) })}
                   </button>
                   <button disabled={!!batchProgress} className="small" onClick={() => chooseTaxSource(taxConflict.invoiceNumber, "rate")}>
-                    {TAX_SOURCE_LABEL.rate}：{fmt(taxConflict.rateTax)} 元
+                    {t("{source}：{amount} 元", { source: t(TAX_SOURCE_LABEL.rate), amount: fmt(taxConflict.rateTax) })}
                   </button>
                 </div>
                 <div style={{ fontSize: 12, marginTop: 6 }}>
-                  「{TAX_SOURCE_LABEL.voucher}」＝總額減掉 QR 上載的銷售額；
-                  「{TAX_SOURCE_LABEL.rate}」＝依你在「稅法參數」頁設定的營業稅率換算。
-                  QR 的加密驗證區本系統尚未驗證，可機讀不等於已驗真。
+                  {t("「{voucher}」＝總額減掉 QR 上載的銷售額；「{rate}」＝依你在「稅法參數」頁設定的營業稅率換算。QR 的加密驗證區本系統尚未驗證，可機讀不等於已驗真。", { voucher: t(TAX_SOURCE_LABEL.voucher), rate: t(TAX_SOURCE_LABEL.rate) })}
                 </div>
               </div>
             )}
             {l.taxSource && (
               <div style={{ fontSize: 13, color: "var(--amber)", marginTop: 4 }}>
-                這筆的稅額指定用「{TAX_SOURCE_LABEL[l.taxSource]}」{" "}
+                {t("這筆的稅額指定用「{source}」", { source: t(TAX_SOURCE_LABEL[l.taxSource]) })}{" "}
                 <button disabled={!!batchProgress} className="small" onClick={() => setItem(i, clearedTaxSource())}>取消指定</button>
               </div>
             )}
@@ -1205,14 +1189,16 @@ export function Expenses() {
           </div>
         ))}
         <div style={{ marginTop: 12 }}>
-          {/* 逐張進度：一次選十張時使用者必須看得到系統在動，以及還剩幾張 */}
+          {/* 逐張進度：一次選十張時使用者必須看得到系統在動，以及還剩幾張。
+              i18n：這一句與「刪除這筆」「取消指定」「清除這張憑證的辨識結果」三個按鈕刻意不包 t()——
+              test/expenses-batch.test.ts、test/expenses-payload.test.ts 以原始碼字面找這幾行 */}
           {batchProgress && (
             <div style={{ fontSize: 13, color: "var(--accent)", marginBottom: 6 }}>
               正在辨識第 {batchProgress.current}／{batchProgress.total} 張…（一張一張處理，處理完的會馬上出現在上面）
             </div>
           )}
           <button className="primary" onClick={submit} disabled={!!batchProgress}>
-            {editingClaim ? "修改並重新送審" : "送出報銷"}
+            {editingClaim ? t("修改並重新送審") : t("送出報銷")}
           </button>
         </div>
       </div>
@@ -1220,9 +1206,9 @@ export function Expenses() {
       {/* R13：公司欠員工多少（財務視角）——approved 未付依員工彙總，發薪/還款前一眼看清 */}
       {seesAll && payable.data && payable.data.count > 0 && (
         <div className="card">
-          <h3>待付報銷（公司欠員工 {fmt(payable.data.amount)} 元，共 {payable.data.count} 件）</h3>
+          <h3>{t("待付報銷（公司欠員工 {amount} 元，共 {count} 件）", { amount: fmt(payable.data.amount), count: payable.data.count })}</h3>
           <table>
-            <thead><tr><th>員工</th><th className="num">件數</th><th className="num">未付金額</th></tr></thead>
+            <thead><tr><th>{t("員工")}</th><th className="num">{t("件數")}</th><th className="num">{t("未付金額")}</th></tr></thead>
             <tbody>
               {payable.data.byEmployee.map((r) => (
                 <tr key={r.employeeId}>
@@ -1234,23 +1220,23 @@ export function Expenses() {
             </tbody>
           </table>
           <p style={{ fontSize: 13, color: "var(--text-2)", margin: "8px 0 0" }}>
-            只計員工代墊（approved 未付款、未作廢）的單；公司支付的報銷核准即付清，不在此列。
+            {t("只計員工代墊（approved 未付款、未作廢）的單；公司支付的報銷核准即付清，不在此列。")}
           </p>
         </div>
       )}
 
       <div className="card">
-        <h3>{privileged ? "報銷單（會計：核准後拋轉費用傳票；付款沖其他應付款）" : "我的報銷單"}</h3>
+        <h3>{privileged ? t("報銷單（會計：核准後拋轉費用傳票；付款沖其他應付款）") : t("我的報銷單")}</h3>
         <ListFilterBar onApply={setFilterQ} total={claims.total} shown={claims.data?.length ?? 0} />
         {claims.data?.length === 0 && (
           <EmptyState
             icon="🧾"
-            title={privileged ? "還沒有人送出報銷單" : "你還沒有報銷單"}
+            title={privileged ? t("還沒有人送出報銷單") : t("你還沒有報銷單")}
             {...(employees.data?.some((emp) => emp.active)
-              ? { desc: "同事墊付的費用用上面的表單送出。電子發票直接拍照或選檔，金額與稅額會自動辨識，不用自己打。" }
+              ? { desc: t("同事墊付的費用用上面的表單送出。電子發票直接拍照或選檔，金額與稅額會自動辨識，不用自己打。") }
               : {
-                  desc: "還沒有員工名冊——報銷單要指定申請人，先到「客戶與商品」把會報帳的同事建起來。",
-                  actionLabel: "去建立員工",
+                  desc: t("還沒有員工名冊——報銷單要指定申請人，先到「客戶與商品」把會報帳的同事建起來。"),
+                  actionLabel: t("去建立員工"),
                   actionPage: "masters" as const,
                 })}
           />
@@ -1258,87 +1244,87 @@ export function Expenses() {
         {claims.data && claims.data.length > 0 && (
         <table>
           <thead>
-            <tr><th>單號</th><th>日期</th><th>員工</th><th className="num">總額</th><th className="num">可扣抵稅額</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("單號")}</th><th>{t("日期")}</th><th>{t("員工")}</th><th className="num">{t("總額")}</th><th className="num">{t("可扣抵稅額")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {claims.data?.map((cl) => (
               <tr key={cl.id}>
                 <td>#{cl.id}</td>
                 <td>{cl.claimDate}</td>
-                <td>{cl.employeeName}{cl.paidBy === "company" && <span style={{ fontSize: 12, color: "var(--text-2)" }}>（公司支付）</span>}</td>
+                <td>{cl.employeeName}{cl.paidBy === "company" && <span style={{ fontSize: 12, color: "var(--text-2)" }}>{t("（公司支付）")}</span>}</td>
                 <td className="num">{fmt(cl.total)}</td>
                 <td className="num">{fmt(cl.items.reduce((s, it) => s + it.tax, 0))}</td>
                 <td>
                   {cl.voidedAt ? (
-                    <span className="badge canceled" title={`作廢理由：${cl.voidReason ?? ""}（沖轉傳票 #${cl.reversalEntryId ?? "—"}）`}>已作廢</span>
+                    <span className="badge canceled" title={t("作廢理由：{reason}（沖轉傳票 #{entry}）", { reason: cl.voidReason ?? "", entry: cl.reversalEntryId ?? "—" })}>{t("已作廢")}</span>
                   ) : (
                     <span className={`badge ${cl.status === "paid" || cl.status === "approved" ? "issued" : "canceled"}`}>
-                      {STATUS_LABEL[cl.status]}
+                      {t(STATUS_LABEL[cl.status] ?? cl.status)}
                     </span>
                   )}
                   {!cl.voidedAt && cl.status === "rejected" && cl.rejectReason && <span style={{ fontSize: 12 }}>（{cl.rejectReason}）</span>}
                 </td>
                 <td>
-                  <button className="small" onClick={() => void api.get<ExpenseClaimDetail>(`/expense-claims/${cl.id}`).then(setDetail)}>明細</button>{" "}
+                  <button className="small" onClick={() => void api.get<ExpenseClaimDetail>(`/expense-claims/${cl.id}`).then(setDetail)}>{t("明細")}</button>{" "}
                   {/* R11：被退回的單本人（或財務）可改明細重送，不必重打重傳 */}
                   {cl.status === "rejected" && (privileged || cl.employeeId === me.employeeId) && (
-                    <button className="small" onClick={() => void startResubmit(cl.id)}>修改重送</button>
+                    <button className="small" onClick={() => void startResubmit(cl.id)}>{t("修改重送")}</button>
                   )}
                   {privileged && cl.status === "submitted" && rejectingId !== cl.id && approvingId !== cl.id && (
                     <>
                       {cl.paidBy === "company" ? (
                         // 公司支付：核准要指定付款科目（貸方直接是它，核准即付清）
-                        <button className="small" onClick={() => { setApprovingId(cl.id); setApproveAccountId(0); }}>核准</button>
+                        <button className="small" onClick={() => { setApprovingId(cl.id); setApproveAccountId(0); }}>{t("核准")}</button>
                       ) : (
-                        <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/approve`, {}))}>核准</button>
+                        <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/approve`, {}))}>{t("核准")}</button>
                       )}{" "}
-                      <button className="small" onClick={() => { setRejectingId(cl.id); setRejectReason(""); }}>退回</button>
+                      <button className="small" onClick={() => { setRejectingId(cl.id); setRejectReason(""); }}>{t("退回")}</button>
                     </>
                   )}
                   {approvingId === cl.id && (
                     <>
                       <select value={approveAccountId} onChange={(e) => setApproveAccountId(Number(e.target.value))}>
-                        <option value={0}>付款科目（公司帳戶或卡）</option>
+                        <option value={0}>{t("付款科目（公司帳戶或卡）")}</option>
                         {companyPayAccounts.map((a) => (
                           <option key={a.id} value={a.id}>{a.code} {a.name}</option>
                         ))}
                       </select>{" "}
-                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/approve`, { accountId: approveAccountId }))}>確認核准</button>{" "}
-                      <button className="small" onClick={() => setApprovingId(null)}>取消</button>
+                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/approve`, { accountId: approveAccountId }))}>{t("確認核准")}</button>{" "}
+                      <button className="small" onClick={() => setApprovingId(null)}>{t("取消")}</button>
                     </>
                   )}
                   {rejectingId === cl.id && (
                     <>
-                      <input autoFocus placeholder="退回原因" style={{ width: 120 }} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />{" "}
-                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/reject`, { reason: rejectReason }))}>確認退回</button>{" "}
-                      <button className="small" onClick={() => setRejectingId(null)}>取消</button>
+                      <input autoFocus placeholder={t("退回原因")} style={{ width: 120 }} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />{" "}
+                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/reject`, { reason: rejectReason }))}>{t("確認退回")}</button>{" "}
+                      <button className="small" onClick={() => setRejectingId(null)}>{t("取消")}</button>
                     </>
                   )}
                   {privileged && cl.status === "approved" && !cl.voidedAt && payingId !== cl.id && (
-                    <button className="small" onClick={() => { setPayingId(cl.id); setPayAccountId(0); setPayDate(new Date().toISOString().slice(0, 10)); }}>付款</button>
+                    <button className="small" onClick={() => { setPayingId(cl.id); setPayAccountId(0); setPayDate(new Date().toISOString().slice(0, 10)); }}>{t("付款")}</button>
                   )}
                   {payingId === cl.id && (
                     <>
                       <select value={payAccountId} onChange={(e) => setPayAccountId(Number(e.target.value))}>
-                        <option value={0}>付款科目</option>
+                        <option value={0}>{t("付款科目")}</option>
                         {cashAccounts.map((a) => (
                           <option key={a.id} value={a.id}>{a.code} {a.name}</option>
                         ))}
                       </select>{" "}
-                      <input type="date" title="付款日期（傳票以這一天入帳）" value={payDate} onChange={(e) => setPayDate(e.target.value)} />{" "}
-                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/pay`, { accountId: payAccountId, ...(payDate ? { payDate } : {}) }))}>確認付款</button>{" "}
-                      <button className="small" onClick={() => setPayingId(null)}>取消</button>
+                      <input type="date" title={t("付款日期（傳票以這一天入帳）")} value={payDate} onChange={(e) => setPayDate(e.target.value)} />{" "}
+                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/pay`, { accountId: payAccountId, ...(payDate ? { payDate } : {}) }))}>{t("確認付款")}</button>{" "}
+                      <button className="small" onClick={() => setPayingId(null)}>{t("取消")}</button>
                     </>
                   )}
                   {/* 0036：作廢——核准後發現打錯的出路（反向傳票沖總帳，401 一併排除） */}
                   {privileged && (cl.status === "approved" || cl.status === "paid") && !cl.voidedAt && voidingId !== cl.id && payingId !== cl.id && (
-                    <>{" "}<button className="small" onClick={() => { setVoidingId(cl.id); setVoidReason(""); }}>作廢</button></>
+                    <>{" "}<button className="small" onClick={() => { setVoidingId(cl.id); setVoidReason(""); }}>{t("作廢")}</button></>
                   )}
                   {voidingId === cl.id && (
                     <>
-                      <input autoFocus placeholder="作廢理由" style={{ width: 120 }} value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />{" "}
-                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/void`, { reason: voidReason }))}>確認作廢</button>{" "}
-                      <button className="small" onClick={() => setVoidingId(null)}>取消</button>
+                      <input autoFocus placeholder={t("作廢理由")} style={{ width: 120 }} value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />{" "}
+                      <button className="small" onClick={() => void act(() => api.post(`/expense-claims/${cl.id}/void`, { reason: voidReason }))}>{t("確認作廢")}</button>{" "}
+                      <button className="small" onClick={() => setVoidingId(null)}>{t("取消")}</button>
                     </>
                   )}
                 </td>
@@ -1351,7 +1337,7 @@ export function Expenses() {
 
       {detail && (
         <div className="card">
-          <h3>報銷單 #{detail.id}（{detail.employeeName}） <button className="small" onClick={() => setDetail(null)}>關閉</button></h3>
+          <h3>{t("報銷單 #{id}（{name}）", { id: detail.id, name: detail.employeeName })} <button className="small" onClick={() => setDetail(null)}>{t("關閉")}</button></h3>
           {/* 核准的人才是讓這些進項稅進 401 的那一個人，而他手上原本只有「可扣抵稅額」一個數字。
               伺服端從已落地的欄位重建的說明就在這裡：兩個競爭的數字（憑證所載 vs 費率回推）各是多少、
               哪一個沒被採用，以及伺服端自己做過的判定（例如買方統編不是本公司，已收成不可扣抵）。
@@ -1359,7 +1345,7 @@ export function Expenses() {
           {detail.taxNotes && detail.taxNotes.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 13, color: "var(--text-2)" }}>
-                這張單的稅額說明（伺服端依已落地的欄位重建，不是重算——重算會跟著之後改過的稅率參數跑）：
+                {t("這張單的稅額說明（伺服端依已落地的欄位重建，不是重算——重算會跟著之後改過的稅率參數跑）：")}
               </div>
               <TaxNotes notes={detail.taxNotes} />
             </div>
@@ -1368,18 +1354,18 @@ export function Expenses() {
             {/* 稅額來源這一欄是「這個數字為什麼是這個數字」的唯一去處：
                 兩個來源不一致時是使用者自己選的，而退回重送會由伺服端沿用同一個選擇——
                 畫面不顯示的話，下個月沒有人答得出來當初選的是哪一個。 */}
-            <thead><tr><th>分類</th><th>說明</th><th>單據</th><th>發票號碼</th><th className="num">金額</th><th className="num">可扣抵稅額</th><th>稅額來源</th></tr></thead>
+            <thead><tr><th>{t("分類")}</th><th>{t("說明")}</th><th>{t("單據")}</th><th>{t("發票號碼")}</th><th className="num">{t("金額")}</th><th className="num">{t("可扣抵稅額")}</th><th>{t("稅額來源")}</th></tr></thead>
             <tbody>
               {detail.items.map((it) => (
                 <tr key={it.id}>
                   <td>{categoryOf(it.accountCode)?.label ?? it.accountCode}</td>
                   <td>{it.description}</td>
-                  <td>{it.docType === "einvoice" ? "電子發票" : it.docType === "receipt" ? "收據" : "其他"}</td>
+                  <td>{it.docType === "einvoice" ? t("電子發票") : it.docType === "receipt" ? t("收據") : t("其他")}</td>
                   <td>{it.invoiceNumber ?? "—"}</td>
                   <td className="num">{fmt(it.amount)}</td>
                   <td className="num">{it.tax ? fmt(it.tax) : "—"}</td>
                   <td style={{ fontSize: 13 }}>
-                    {it.taxSource === "voucher" || it.taxSource === "rate" ? TAX_SOURCE_LABEL[it.taxSource] : "—"}
+                    {it.taxSource === "voucher" || it.taxSource === "rate" ? t(TAX_SOURCE_LABEL[it.taxSource]) : "—"}
                   </td>
                 </tr>
               ))}
@@ -1389,10 +1375,10 @@ export function Expenses() {
             {/* R12：影像可單獨下載（記帳士要憑證檔）；API 另有 GET /expense-claims/:id/items/:itemId/image */}
             {detail.items.filter((it) => it.image).map((it) => (
               <div key={it.id} style={{ textAlign: "center" }}>
-                <img src={it.image!} alt={it.invoiceNumber ?? "單據"} style={{ maxWidth: 260, maxHeight: 320, border: "1px solid var(--line)" }} />
+                <img src={it.image!} alt={it.invoiceNumber ?? t("單據")} style={{ maxWidth: 260, maxHeight: 320, border: "1px solid var(--line)" }} />
                 <div>
-                  <a download={`報銷單${detail.id}-明細${it.id}${it.invoiceNumber ? `-${it.invoiceNumber}` : ""}`} href={it.image!} className="small">
-                    下載憑證
+                  <a download={`${t("報銷單{claim}-明細{item}", { claim: detail.id, item: it.id })}${it.invoiceNumber ? `-${it.invoiceNumber}` : ""}`} href={it.image!} className="small">
+                    {t("下載憑證")}
                   </a>
                 </div>
               </div>
@@ -1416,6 +1402,7 @@ export function Expenses() {
  * 三處對齊了，畫面上寫的才會等於實際落地的稅額。
  */
 function DeductibleNote(props: { category: ExpenseCategory | undefined; onDate: string }) {
+  const t = useT();
   const nav = useNav();
   // 只有進得了那一頁的人才給連結：員工／業務看不到稅法參數頁，
   // 給了按鈕按下去會靜靜地跳回第一頁——那比沒有按鈕更糟
@@ -1425,25 +1412,25 @@ function DeductibleNote(props: { category: ExpenseCategory | undefined; onDate: 
   const byUser = c.deductibleSource === "parameter";
   return (
     <div style={{ fontSize: 13, color: byUser ? "var(--green)" : "var(--text-2)", marginTop: 4 }}>
-      這一類在<strong>{props.onDate}</strong>（本單日期）判定為
-      <strong>{c.inputTaxDeductible ? "可扣抵" : "不可扣抵"}</strong>進項稅
+      {t("這一類在")}<strong>{props.onDate}</strong>{t("（本單日期）判定為")}
+      <strong>{c.inputTaxDeductible ? t("可扣抵") : t("不可扣抵")}</strong>{t("進項稅")}
       {byUser ? (
         <>
-          ，依據<strong>你在「稅法參數」頁設定的值</strong>
-          （{c.deductibleValidFrom} 起{c.deductibleValidTo ? `～${c.deductibleValidTo}` : "，仍有效"}
-          {c.deductibleSourceNote ? `；依據來源：${c.deductibleSourceNote}` : "；未註明依據來源"}）。
+          {t("，依據")}<strong>{t("你在「稅法參數」頁設定的值")}</strong>
+          {t("（{from} 起", { from: c.deductibleValidFrom })}{c.deductibleValidTo ? t("～{to}", { to: c.deductibleValidTo }) : t("，仍有效")}
+          {c.deductibleSourceNote ? t("；依據來源：{note}", { note: c.deductibleSourceNote }) : t("；未註明依據來源")}{t("）。")}
         </>
       ) : (
         <>
-          ，用的是<strong>系統預設值（尚未經查證）</strong>。
+          {t("，用的是")}<strong>{t("系統預設值（尚未經查證）")}</strong>{t("。")}
           {canEdit ? (
             <>
-              若你查證後認為不對，可到{" "}
-              <button className="small" onClick={() => nav("tax-parameters")}>稅法參數</button>{" "}
-              頁覆寫它並留下依據；<strong>已建立的報銷單稅額不會回頭重算</strong>。
+              {t("若你查證後認為不對，可到")}{" "}
+              <button className="small" onClick={() => nav("tax-parameters")}>{t("稅法參數")}</button>{" "}
+              {t("頁覆寫它並留下依據；")}<strong>{t("已建立的報銷單稅額不會回頭重算")}</strong>{t("。")}
             </>
           ) : (
-            <>若你查證後認為不對，請告知財務——他可以在「稅法參數」頁覆寫並留下依據。</>
+            <>{t("若你查證後認為不對，請告知財務——他可以在「稅法參數」頁覆寫並留下依據。")}</>
           )}
         </>
       )}

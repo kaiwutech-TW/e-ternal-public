@@ -6,6 +6,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import type { CompanyHeader } from "./types.ts";
+import { t as tStatic, useT } from "./i18n.ts";
 
 /**
  * 浮層＋列印工具列。size="a4"＝A4 直式版面；size="receipt"＝57mm 感熱紙版面。
@@ -18,11 +19,12 @@ export function PrintOverlay(props: {
   screenNote?: string;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="print-overlay">
       <div className="print-toolbar no-print">
-        <button className="primary" onClick={() => window.print()}>列印</button>{" "}
-        <button onClick={props.onClose}>關閉</button>
+        <button className="primary" onClick={() => window.print()}>{t("列印")}</button>{" "}
+        <button onClick={props.onClose}>{t("關閉")}</button>
         {props.screenNote && <div className="print-screen-note">{props.screenNote}</div>}
       </div>
       <div className={`print-sheet ${props.size === "receipt" ? "receipt" : "a4"}`}>{props.children}</div>
@@ -32,6 +34,7 @@ export function PrintOverlay(props: {
 
 /** 公司抬頭區塊：未設定公司基本檔時明講去哪補，不留一塊空白讓人猜 */
 export function CompanyHeaderBlock(props: { company: CompanyHeader | null; docTitle: string }) {
+  const t = useT();
   const c = props.company;
   return (
     <div className="print-head">
@@ -39,13 +42,13 @@ export function CompanyHeaderBlock(props: { company: CompanyHeader | null; docTi
         <>
           <div className="co-name">{c.name}</div>
           <div className="co-meta">
-            統一編號 {c.taxId}
-            {c.telephone ? `　電話 ${c.telephone}` : ""}
+            {t("統一編號 {taxId}", { taxId: c.taxId })}
+            {c.telephone ? t("　電話 {tel}", { tel: c.telephone }) : ""}
             {c.address ? `　${c.address}` : ""}
           </div>
         </>
       ) : (
-        <div className="co-name">（公司基本檔未設定——請至「設定」頁填寫公司名稱與統編後再列印）</div>
+        <div className="co-name">{t("（公司基本檔未設定——請至「設定」頁填寫公司名稱與統編後再列印）")}</div>
       )}
       <div className="doc-title">{props.docTitle}</div>
     </div>
@@ -71,6 +74,7 @@ const CODE39: Record<string, string> = {
 };
 
 export function Code39(props: { value: string; height?: number }) {
+  // qr-fixtures 直接把 Code39 當純函式呼叫（非 React 樹），所以這裡用非 hook 版 t
   const narrow = 1;
   const wide = 2.5;
   const height = props.height ?? 28;
@@ -79,7 +83,7 @@ export function Code39(props: { value: string; height?: number }) {
   let x = 0;
   for (const ch of chars) {
     const pattern = CODE39[ch];
-    if (!pattern) return <div>（條碼含不支援的字元：{ch}）</div>;
+    if (!pattern) return <div>{tStatic("（條碼含不支援的字元：{ch}）", { ch })}</div>;
     for (let i = 0; i < 9; i++) {
       const w = pattern[i] === "1" ? wide : narrow;
       if (i % 2 === 0) rects.push({ x, w }); // 偶數位是條，奇數位是空
@@ -123,6 +127,7 @@ const QUIET_ZONE_MODULES = 4;
  * 這筆紙寬預算的算式寫在 styles.css 的 .r-qrs 上方，改動 size 或 QUIET_ZONE_MODULES 前先看那段。
  */
 export function QrImg(props: { text: string; size?: number }) {
+  const t = useT();
   const size = props.size ?? 88;
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -148,7 +153,7 @@ export function QrImg(props: { text: string; size?: number }) {
       alive = false;
     };
   }, [props.text, size]);
-  if (err) return <div style={{ fontSize: 9 }}>QR 產生失敗：{err}</div>;
+  if (err) return <div style={{ fontSize: 9 }}>{t("QR 產生失敗：{err}", { err })}</div>;
   return src ? (
     <img
       className="qr-img"

@@ -21,7 +21,7 @@ const MAX_GENERATED_ITEMS = 60;
 
 async function requirePayable(db: Db, id: number) {
   const [row] = await db.select().from(schema.recurringPayables).where(eq(schema.recurringPayables.id, id));
-  if (!row) throw new AppError(404, `週期性支出不存在: ${id}`);
+  if (!row) throw new AppError(404, "週期性支出不存在: {id}", { id });
   return row;
 }
 
@@ -30,7 +30,7 @@ async function requireItem(db: Db, payableId: number, itemId: number) {
     .select()
     .from(schema.recurringPayableItems)
     .where(and(eq(schema.recurringPayableItems.id, itemId), eq(schema.recurringPayableItems.payableId, payableId)));
-  if (!row) throw new AppError(404, `這筆週期性支出沒有這一期: ${itemId}`);
+  if (!row) throw new AppError(404, "這筆週期性支出沒有這一期: {id}", { id: itemId });
   return row;
 }
 
@@ -118,20 +118,19 @@ export async function createPayable(db: Db, input: PayableInput, userId: number)
   if (!input.basis.trim()) {
     throw new AppError(
       422,
-      "請填「依據」：這筆錢為什麼是這個金額、這個頻率，來源是什麼（合約條款、帳單、你查到的規定）。" +
-        "系統不預設任何金額或頻率，也不判斷你該不該付——這一欄是你自己的紀錄",
+      "請填「依據」：這筆錢為什麼是這個金額、這個頻率，來源是什麼（合約條款、帳單、你查到的規定）。系統不預設任何金額或頻率，也不判斷你該不該付——這一欄是你自己的紀錄",
     );
   }
   if (input.endDate && input.endDate < input.startDate) {
-    throw new AppError(422, `結束日（${input.endDate}）不可早於開始日（${input.startDate}）`);
+    throw new AppError(422, "結束日（{endDate}）不可早於開始日（{startDate}）", { endDate: input.endDate, startDate: input.startDate });
   }
   if (input.defaultAccountCode) {
     const [acct] = await db
       .select({ code: schema.accounts.code, active: schema.accounts.active })
       .from(schema.accounts)
       .where(eq(schema.accounts.code, input.defaultAccountCode));
-    if (!acct) throw new AppError(404, `會計科目不存在: ${input.defaultAccountCode}`);
-    if (!acct.active) throw new AppError(422, `會計科目 ${input.defaultAccountCode} 已停用`);
+    if (!acct) throw new AppError(404, "會計科目不存在: {code}", { code: input.defaultAccountCode });
+    if (!acct.active) throw new AppError(422, "會計科目 {code} 已停用", { code: input.defaultAccountCode });
   }
   const [row] = await db
     .insert(schema.recurringPayables)
@@ -191,12 +190,13 @@ export async function generateItems(db: Db, payableId: number, to: string): Prom
   const [fy, fm] = [Number(from.slice(0, 4)), Number(from.slice(5, 7))];
   const [ty, tm] = [Number(limit.slice(0, 4)), Number(limit.slice(5, 7))];
   const span = (ty - fy) * 12 + (tm - fm);
-  if (span < 0) throw new AppError(422, `展開到 ${limit.slice(0, 7)} 早於開始月（${from.slice(0, 7)}）`);
+  if (span < 0) throw new AppError(422, "展開到 {limit} 早於開始月（{from}）", { limit: limit.slice(0, 7), from: from.slice(0, 7) });
   const count = Math.floor(span / p.intervalMonths) + 1;
   if (count > MAX_GENERATED_ITEMS) {
     throw new AppError(
       422,
-      `一次最多展開 ${MAX_GENERATED_ITEMS} 期（本次會展開 ${count} 期）——請確認年份沒有打錯；真的要更長請分次展開`,
+      "一次最多展開 {max} 期（本次會展開 {count} 期）——請確認年份沒有打錯；真的要更長請分次展開",
+      { max: MAX_GENERATED_ITEMS, count },
     );
   }
   const existing = await db
@@ -232,7 +232,7 @@ export async function updateItem(
   const row = await requireItem(db, payableId, itemId);
   const alive = await settledSet(db, [row]);
   if (toView(row, alive).settled) {
-    throw new AppError(409, `第 ${row.seq} 期已結清，金額與日期以那張單為準。要改請先解除結清`);
+    throw new AppError(409, "第 {seq} 期已結清，金額與日期以那張單為準。要改請先解除結清", { seq: row.seq });
   }
   await db
     .update(schema.recurringPayableItems)
@@ -249,7 +249,7 @@ export async function deleteItem(db: Db, payableId: number, itemId: number): Pro
   const row = await requireItem(db, payableId, itemId);
   const alive = await settledSet(db, [row]);
   if (toView(row, alive).settled) {
-    throw new AppError(409, `第 ${row.seq} 期已結清，不能刪除。要取消這期請先解除結清`);
+    throw new AppError(409, "第 {seq} 期已結清，不能刪除。要取消這期請先解除結清", { seq: row.seq });
   }
   await db.delete(schema.recurringPayableItems).where(eq(schema.recurringPayableItems.id, itemId));
 }
@@ -268,7 +268,7 @@ export async function settleItem(
   const row = await requireItem(db, payableId, itemId);
   const alive = await settledSet(db, [row]);
   if (toView(row, alive).settled) {
-    throw new AppError(409, `第 ${row.seq} 期已結清。要換一張請先解除結清`);
+    throw new AppError(409, "第 {seq} 期已結清。要換一張請先解除結清", { seq: row.seq });
   }
   const hasClaim = input.expenseClaimId !== undefined;
   const hasEntry = input.journalEntryId !== undefined;
@@ -280,26 +280,26 @@ export async function settleItem(
       .select()
       .from(schema.expenseClaims)
       .where(eq(schema.expenseClaims.id, input.expenseClaimId!));
-    if (!claim) throw new AppError(404, `報銷單不存在: ${input.expenseClaimId}`);
-    if (claim.voidedAt) throw new AppError(409, `報銷單 #${claim.id} 已作廢，不能用來結清`);
+    if (!claim) throw new AppError(404, "報銷單不存在: {id}", { id: input.expenseClaimId });
+    if (claim.voidedAt) throw new AppError(409, "報銷單 #{id} 已作廢，不能用來結清", { id: claim.id });
     const [taken] = await db
       .select({ payableId: schema.recurringPayableItems.payableId, seq: schema.recurringPayableItems.seq })
       .from(schema.recurringPayableItems)
       .where(eq(schema.recurringPayableItems.expenseClaimId, input.expenseClaimId!));
     if (taken) {
-      throw new AppError(409, `報銷單 #${claim.id} 已結清在第 ${taken.seq} 期。一張單只能對一期`);
+      throw new AppError(409, "報銷單 #{id} 已結清在第 {seq} 期。一張單只能對一期", { id: claim.id, seq: taken.seq });
     }
   } else {
     const [entry] = await db
       .select({ id: schema.journalEntries.id })
       .from(schema.journalEntries)
       .where(eq(schema.journalEntries.id, input.journalEntryId!));
-    if (!entry) throw new AppError(404, `傳票不存在: ${input.journalEntryId}`);
+    if (!entry) throw new AppError(404, "傳票不存在: {id}", { id: input.journalEntryId });
     const [taken] = await db
       .select({ seq: schema.recurringPayableItems.seq })
       .from(schema.recurringPayableItems)
       .where(eq(schema.recurringPayableItems.journalEntryId, input.journalEntryId!));
-    if (taken) throw new AppError(409, `傳票 #${entry.id} 已結清在第 ${taken.seq} 期。一張單只能對一期`);
+    if (taken) throw new AppError(409, "傳票 #{id} 已結清在第 {seq} 期。一張單只能對一期", { id: entry.id, seq: taken.seq });
   }
   await db
     .update(schema.recurringPayableItems)
@@ -312,7 +312,7 @@ export async function settleItem(
 export async function unsettleItem(db: Db, payableId: number, itemId: number): Promise<PayableItemView[]> {
   const row = await requireItem(db, payableId, itemId);
   if (row.expenseClaimId === null && row.journalEntryId === null) {
-    throw new AppError(409, `第 ${row.seq} 期沒有結清紀錄`);
+    throw new AppError(409, "第 {seq} 期沒有結清紀錄", { seq: row.seq });
   }
   await db
     .update(schema.recurringPayableItems)

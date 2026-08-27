@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.ts";
+import { useT } from "../i18n.ts";
 import { fmt, useFetch, useListFetch } from "../hooks.ts";
 import { ListFilterBar } from "../ui.tsx";
 import type { Account, JournalEntryRow } from "../types.ts";
@@ -33,6 +34,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function Journal() {
+  const t = useT();
   const accounts = useFetch<Account[]>("/accounts");
   // 清單篩選（R3）：日期範圍；傳票沒有交易對象欄
   const [filterQ, setFilterQ] = useState("");
@@ -57,11 +59,11 @@ export function Journal() {
    * 絕不靜默丟棄有金額的分錄（丟了會讓借貸合計與實際送出的內容對不上）。
    */
   const resolveCode = (text: string): string => {
-    const t = text.trim();
-    if (!t) return "";
-    const exact = accounts.data?.find((a) => t === a.code || t === `${a.code} ${a.name}`);
+    const txt = text.trim();
+    if (!txt) return "";
+    const exact = accounts.data?.find((a) => txt === a.code || txt === `${a.code} ${a.name}`);
     if (exact) return exact.code;
-    const m = /^(\d{4})/.exec(t);
+    const m = /^(\d{4})/.exec(txt);
     return m && accounts.data?.some((a) => a.code === m[1]) ? m[1]! : "";
   };
   const displayOf = (l: EntryLine) =>
@@ -117,8 +119,8 @@ export function Journal() {
   /** 作廢手工傳票（B4）：產生反向傳票沖平，原傳票留痕。系統傳票要作廢其來源單據（後端會指路） */
   const voidEntry = async (e: JournalEntryRow) => {
     const reason = window.prompt(
-      `作廢傳票 #${e.id}（${e.memo}）：請輸入作廢理由。\n` +
-        "系統會開一張借貸互換的反向傳票沖平；打錯的分錄請作廢後重開一張。",
+      t("作廢傳票 #{id}（{memo}）：請輸入作廢理由。", { id: e.id, memo: e.memo }) + "\n" +
+        t("系統會開一張借貸互換的反向傳票沖平；打錯的分錄請作廢後重開一張。"),
     );
     if (reason === null) return;
     try {
@@ -134,10 +136,10 @@ export function Journal() {
     <div>
       {error && <div className="error">{error}</div>}
       <div className="card">
-        <h3>手工傳票（調整分錄、費用、期初科目餘額開帳）</h3>
+        <h3>{t("手工傳票（調整分錄、費用、期初科目餘額開帳）")}</h3>
         <form className="inline" onSubmit={(e) => e.preventDefault()}>
-          <label className="field">日期<input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></label>
-          <label className="field">摘要<input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="例：期初開帳" style={{ width: 220 }} /></label>
+          <label className="field">{t("日期")}<input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></label>
+          <label className="field">{t("摘要")}<input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder={t("例：期初開帳")} style={{ width: 220 }} /></label>
         </form>
         {lines.map((l, i) => (
           <form
@@ -161,41 +163,41 @@ export function Journal() {
             }}
           >
             <label className="field">
-              科目
+              {t("科目")}
               {/* datalist 版 combobox：可打代號（1101）或名稱（現金）過濾，74+ 個科目用純下拉太難撈 */}
               <input
                 list="journal-account-options"
                 data-line-account={i}
                 value={displayOf(l)}
                 onChange={(e) => setLine(i, { accountText: e.target.value, accountCode: resolveCode(e.target.value) })}
-                placeholder="打代號或名稱搜尋"
+                placeholder={t("打代號或名稱搜尋")}
                 style={{
                   width: 200,
                   ...((l.accountText ?? "").trim() !== "" && !l.accountCode ? { borderColor: "var(--red)", background: "var(--red-tint)" } : {}),
                 }}
               />
             </label>
-            <label className="field">借方<input type="number" min={0} value={l.debit} onChange={(e) => setLine(i, { debit: Number(e.target.value) })} /></label>
-            <label className="field">貸方<input type="number" min={0} value={l.credit} onChange={(e) => setLine(i, { credit: Number(e.target.value) })} /></label>
+            <label className="field">{t("借方")}<input type="number" min={0} value={l.debit} onChange={(e) => setLine(i, { debit: Number(e.target.value) })} /></label>
+            <label className="field">{t("貸方")}<input type="number" min={0} value={l.credit} onChange={(e) => setLine(i, { credit: Number(e.target.value) })} /></label>
             <label className="field">
-              行摘要（選填）
+              {t("行摘要（選填）")}
               <input
                 value={l.memo}
                 onChange={(e) => setLine(i, { memo: e.target.value })}
-                placeholder="這一行在動什麼"
+                placeholder={t("這一行在動什麼")}
                 style={{ width: 180 }}
               />
             </label>
             <button
               className="small"
-              title="刪除本行（⌘⌫）"
+              title={t("刪除本行（⌘⌫）")}
               disabled={lines.length <= 2}
               onClick={() => removeLine(i)}
             >
               ✕
             </button>
             {i === lines.length - 1 && (
-              <button className="small" onClick={addLine}>＋分錄（Enter）</button>
+              <button className="small" onClick={addLine}>{t("＋分錄（Enter）")}</button>
             )}
           </form>
         ))}
@@ -206,27 +208,26 @@ export function Journal() {
         </datalist>
         <div style={{ marginTop: 12 }}>
           <span style={{ marginRight: 12, color: totalDebit === totalCredit ? "var(--green)" : "var(--red)" }}>
-            借 {fmt(totalDebit)}／貸 {fmt(totalCredit)}{totalDebit === totalCredit ? "（已平）" : "（未平）"}
+            {totalDebit === totalCredit ? t("借 {debit}／貸 {credit}（已平）", { debit: fmt(totalDebit), credit: fmt(totalCredit) }) : t("借 {debit}／貸 {credit}（未平）", { debit: fmt(totalDebit), credit: fmt(totalCredit) })}
           </span>
           {unresolved && (
-            <span style={{ marginRight: 12, color: "var(--red)" }}>有分錄的科目對不上（紅框）——請從清單選一個</span>
+            <span style={{ marginRight: 12, color: "var(--red)" }}>{t("有分錄的科目對不上（紅框）——請從清單選一個")}</span>
           )}
           <button className="primary" onClick={submit} disabled={totalDebit !== totalCredit || totalDebit === 0 || unresolved}>
-            建立傳票
+            {t("建立傳票")}
           </button>
           <div style={{ fontSize: "0.78125rem", color: "var(--text-3)", marginTop: 6 }}>
-            鍵盤：Enter＝新增一行（在最後一行時）、⌘/Ctrl+Enter＝建立傳票、⌘/Ctrl+⌫＝刪除該行。
-            沒選科目或金額為 0 的行送出時會自動略過，不會被記錄。
+            {t("鍵盤：Enter＝新增一行（在最後一行時）、⌘/Ctrl+Enter＝建立傳票、⌘/Ctrl+⌫＝刪除該行。沒選科目或金額為 0 的行送出時會自動略過，不會被記錄。")}
           </div>
         </div>
       </div>
 
       <div className="card">
-        <h3>傳票清單</h3>
+        <h3>{t("傳票清單")}</h3>
         <ListFilterBar onApply={setFilterQ} total={entries.total} shown={entries.data?.length ?? 0} />
         <table>
           <thead>
-            <tr><th>編號</th><th>日期</th><th>摘要</th><th>來源</th><th className="num">金額（借方合計）</th><th></th></tr>
+            <tr><th>{t("編號")}</th><th>{t("日期")}</th><th>{t("摘要")}</th><th>{t("來源")}</th><th className="num">{t("金額（借方合計）")}</th><th></th></tr>
           </thead>
           <tbody>
             {entries.data?.map((e) => (
@@ -237,20 +238,20 @@ export function Journal() {
                 <td>
                   {e.memo}{" "}
                   {e.voidedAt && (
-                    <span className="badge canceled" title={`作廢理由：${e.voidReason ?? ""}（沖轉傳票 #${e.reversalEntryId ?? "?"}）`}>
-                      已作廢
+                    <span className="badge canceled" title={t("作廢理由：{reason}（沖轉傳票 #{id}）", { reason: e.voidReason ?? "", id: e.reversalEntryId ?? "?" })}>
+                      {t("已作廢")}
                     </span>
                   )}
                 </td>
-                <td>{e.sourceType ? SOURCE_LABEL[e.sourceType] ?? e.sourceType : "手工"}</td>
+                <td>{e.sourceType ? t(SOURCE_LABEL[e.sourceType] ?? e.sourceType) : t("手工")}</td>
                 <td className="num">{fmt(e.totalDebit)}</td>
                 <td>
                   <button className="small" onClick={() => void showDetail(e.id)}>
-                    {detail?.id === e.id ? "收合" : "明細"}
+                    {detail?.id === e.id ? t("收合") : t("明細")}
                   </button>{" "}
                   {/* 只有手工傳票能直接作廢：系統傳票作廢其來源單據（收付款／銷貨頁等各有作廢鍵） */}
                   {e.sourceType === "manual" && !e.voidedAt && (
-                    <button className="small" onClick={() => void voidEntry(e)}>作廢</button>
+                    <button className="small" onClick={() => void voidEntry(e)}>{t("作廢")}</button>
                   )}
                 </td>
               </tr>
@@ -258,7 +259,7 @@ export function Journal() {
                 <tr key={`${e.id}-detail`}>
                   <td colSpan={6} style={{ background: "var(--bg)", padding: 12 }}>
                     <table style={{ background: "transparent" }}>
-                      <thead><tr><th>科目</th><th>名稱</th><th className="num">借方</th><th className="num">貸方</th><th>行摘要</th></tr></thead>
+                      <thead><tr><th>{t("科目")}</th><th>{t("名稱")}</th><th className="num">{t("借方")}</th><th className="num">{t("貸方")}</th><th>{t("行摘要")}</th></tr></thead>
                       <tbody>
                         {detail.lines.map((l, i) => (
                           <tr key={i}>

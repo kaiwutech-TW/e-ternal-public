@@ -1,4 +1,27 @@
 import type { Dictionary } from "@tw-erp/core";
 
 export const expenses: Dictionary = {
+  "發票 {invoiceNumber} 已列報在報銷單 #{claimId}——同一張發票列報兩次會讓進項稅重複扣抵（少繳稅）。請核對號碼；若 #{claimId} 才是登錯的那張，請先退回它。確為不同賣方的同號發票，兩筆都補上賣方統編即可放行": "Invoice {invoiceNumber} is already claimed on expense claim #{claimId} — claiming the same invoice twice would deduct input VAT twice (underpaying tax). Check the number; if #{claimId} is the one entered wrongly, reject it first. If these really are same-numbered invoices from different sellers, add the seller's Tax ID to both lines to proceed",
+  "發票 {invoiceNumber} 已登錄在進貨單 #{purchaseId}——同一張發票再走報銷會讓進項稅重複扣抵（少繳稅）。請核對號碼；若 #{purchaseId} 才是登錯的那張，請先修正或作廢它。確為不同賣方的同號發票，報銷明細補上賣方統編即可放行": "Invoice {invoiceNumber} is already recorded on purchase invoice #{purchaseId} — claiming it again as an expense would deduct input VAT twice (underpaying tax). Check the number; if #{purchaseId} is the one entered wrongly, correct or void it first. If these really are same-numbered invoices from different sellers, add the seller's Tax ID to the expense line to proceed",
+  "{label}（{date}）不是日曆上存在的日期——請核對月份與日數再送出": "{label} ({date}) is not a valid calendar date — check the month and day before submitting",
+  "報銷分類不存在: {code}": "Expense category not found: {code}",
+  "發票號碼格式錯誤: {invoiceNumber}": "Invalid invoice number format: {invoiceNumber}",
+  "發票 {invoiceNumber} 在同一張報銷單裡出現兩次——同一張發票只能列報一次，請刪掉重複的那筆": "Invoice {invoiceNumber} appears twice on this expense claim — an invoice can only be claimed once; remove the duplicate line",
+  "這張報銷單有 {n} 筆明細要你確認（一次列出，不必來回送）：\n{list}": "This expense claim has {n} lines that need your confirmation (listed together so you do not have to resubmit repeatedly):\n{list}",
+  "員工不存在: {id}": "Employee not found: {id}",
+  "員工已停用: {name}": "Employee is inactive: {name}",
+  "報銷單狀態不可修改重送: {status}（只有被退回的單可以改；已核准的單要更正請用作廢，送審中的請先請財務退回）": "Expense claim cannot be edited and resubmitted in status: {status} (only rejected claims can be edited; to correct an approved claim, void it; for a claim pending approval, ask Finance to reject it first)",
+  "報銷單不存在: {id}": "Expense claim not found: {id}",
+  "不能{action}自己送的報銷單——請由其他財務或管理者審核（審核的意義是另一雙眼睛）": "You cannot {action} your own expense claim — another Finance user or admin must review it (the point of review is a second pair of eyes)",
+  "報銷單狀態不可核准: {status}": "Expense claim cannot be approved in status: {status}",
+  "科目已停用，不可再過帳: {code} {name}（請改用其他科目，或先啟用它）": "Account is inactive and cannot be posted to: {code} {name} (use another account or reactivate it first)",
+  "報銷單 #{id} 是公司支付（公司卡／公司帳戶），核准時請指定付款科目（現金科目，或公司卡的負債科目）": "Expense claim #{id} was paid by the company (company card / company account); specify the payment account on approval (a cash account, or the liability account for the company card)",
+  "科目不存在: {id}": "Account not found: {id}",
+  "科目已停用，不可再過帳: {code} {name}": "Account is inactive and cannot be posted to: {code} {name}",
+  "{code} {name} 不能當公司支付的付款科目——請選現金科目（公司帳戶）或負債科目（公司信用卡的應付卡費）": "{code} {name} cannot be used as the payment account for company-paid expenses — choose a cash account (company account) or a liability account (company credit card payable)",
+  "報銷單狀態不可退回: {status}": "Expense claim cannot be rejected in status: {status}",
+  "報銷單狀態不可付款: {status}": "Expense claim cannot be paid in status: {status}",
+  "報銷單 #{id} 已作廢（理由：{reason}），不可付款": "Expense claim #{id} has been voided (reason: {reason}) and cannot be paid",
+  "報銷明細不存在: 單 #{claimId} 明細 #{itemId}": "Expense line not found: claim #{claimId}, line #{itemId}",
+  "報銷明細 #{itemId} 沒有憑證影像": "Expense line #{itemId} has no receipt image",
 };

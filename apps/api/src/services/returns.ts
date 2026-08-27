@@ -112,7 +112,7 @@ async function insertEntry(
   await db.insert(schema.journalLines).values(
     lines.map((l) => {
       const accountId = codeToId.get(l.accountCode);
-      if (!accountId) throw new AppError(500, `科目未初始化: ${l.accountCode}`);
+      if (!accountId) throw new AppError(500, "科目未初始化: {code}", { code: l.accountCode });
       return { entryId: entry!.id, accountId, debit: l.debit, credit: l.credit };
     }),
   );
@@ -126,15 +126,15 @@ async function insertEntry(
  */
 async function requireCashAccount(db: Db, accountId: number) {
   const [account] = await db.select().from(schema.accounts).where(eq(schema.accounts.id, accountId));
-  if (!account) throw new AppError(404, `科目不存在: ${accountId}`);
+  if (!account) throw new AppError(404, "科目不存在: {id}", { id: accountId });
   if (!account.isCash) {
     throw new AppError(
       422,
-      `${account.code} ${account.name} 不是現金科目，不能當退款科目` +
-        `（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目）`,
+      "{code} {name} 不是現金科目，不能當退款科目（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目）",
+      { code: account.code, name: account.name },
     );
   }
-  if (!account.active) throw new AppError(400, `科目已停用，不可再過帳: ${account.code} ${account.name}`);
+  if (!account.active) throw new AppError(400, "科目已停用，不可再過帳: {code} {name}", { code: account.code, name: account.name });
   return account;
 }
 
@@ -351,9 +351,9 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
     // 但明細仍帶 product_id，插入時外鍵會隱式對 products 取鎖——為了讓全站的取鎖順序一致
     // （避免與別條路徑的 FOR UPDATE 反向交錯成死鎖），下面驗證完明細後仍會呼叫 lockProducts。
     const [sale] = await tx.select().from(schema.sales).where(eq(schema.sales.id, saleId)).for("update");
-    if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
+    if (!sale) throw new AppError(404, "銷貨單不存在: {id}", { id: saleId });
     if (sale.reversalEntryId) {
-      throw new AppError(409, `銷貨單 ${saleId} 已整單沖銷（傳票 #${sale.reversalEntryId}），不可再退回`);
+      throw new AppError(409, "銷貨單 {id} 已整單沖銷（傳票 #{entryId}），不可再退回", { id: saleId, entryId: sale.reversalEntryId });
     }
     // 與 reverseSale 對稱的一道擋：那條路遇到已開退回單會 409（避免雙重沖銷），這條路遇到
     // 「發票已作廢且沒有重開」也必須 409——作廢已經把這張銷貨的銷項從 401 抽掉了（generate401
@@ -366,13 +366,12 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
       const last = invoices[invoices.length - 1]!;
       throw new AppError(
         409,
-        `原發票 ${last.invoiceNumber} 已作廢，這張銷貨的銷項稅已經被作廢抽掉，再開退回／折讓單會重複減一次` +
-          `（若貨真的退回來了：請先對這張銷貨單重新開立發票再開退回單；若整筆交易本來就要取消，` +
-          `作廢已經達到目的，不必再開退回單）`,
+        "原發票 {invoiceNumber} 已作廢，這張銷貨的銷項稅已經被作廢抽掉，再開退回／折讓單會重複減一次（若貨真的退回來了：請先對這張銷貨單重新開立發票再開退回單；若整筆交易本來就要取消，作廢已經達到目的，不必再開退回單）",
+        { invoiceNumber: last.invoiceNumber },
       );
     }
     if (input.docDate < sale.docDate) {
-      throw new AppError(422, `退回日 ${input.docDate} 早於原銷貨日 ${sale.docDate}`);
+      throw new AppError(422, "退回日 {docDate} 早於原銷貨日 {saleDate}", { docDate: input.docDate, saleDate: sale.docDate });
     }
     if (!input.lines.length) throw new AppError(422, "至少要有一筆退回明細");
 
@@ -381,7 +380,7 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
     // 明細先驗證屬於本單，再依 productId 排序取商品鎖（與銷貨／進貨／進貨退出同一個順序）
     for (const l of input.lines) {
       if (!lineById.has(l.sourceLineId)) {
-        throw new AppError(422, `明細 ${l.sourceLineId} 不屬於銷貨單 #${saleId}`);
+        throw new AppError(422, "明細 {lineId} 不屬於銷貨單 #{id}", { lineId: l.sourceLineId, id: saleId });
       }
     }
     await lockProducts(tx, input.lines.map((l) => lineById.get(l.sourceLineId)!.productId));
@@ -393,7 +392,7 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
     const costed: { line: typeof saleLines[number]; qty: number; amount: number; cost: number }[] = [];
     for (const input_ of input.lines) {
       const line = lineById.get(input_.sourceLineId);
-      if (!line) throw new AppError(422, `明細 ${input_.sourceLineId} 不屬於銷貨單 #${saleId}`);
+      if (!line) throw new AppError(422, "明細 {lineId} 不屬於銷貨單 #{id}", { lineId: input_.sourceLineId, id: saleId });
       const p = priorOf(line.id);
       const origQty = Number(line.qty);
 
@@ -402,11 +401,12 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
       let cost = 0;
       if (input.kind === "return") {
         qty = input_.qty ?? 0;
-        if (qty <= 0) throw new AppError(422, `退回數量須大於 0（明細 ${line.id}）`);
+        if (qty <= 0) throw new AppError(422, "退回數量須大於 0（明細 {lineId}）", { lineId: line.id });
         if (p.qty + qty > origQty) {
           throw new AppError(
             422,
-            `退回量超過原銷貨量：明細 ${line.id} 原售 ${origQty}、已退 ${p.qty}、可退 ${origQty - p.qty}，欲退 ${qty}`,
+            "退回量超過原銷貨量：明細 {lineId} 原售 {origQty}、已退 {returned}、可退 {returnable}，欲退 {qty}",
+            { lineId: line.id, origQty, returned: p.qty, returnable: origQty - p.qty, qty },
           );
         }
         // 攤的基準是「退回池」而不是退回＋折讓：折讓沒有拿走任何數量，把它算進已退金額會讓
@@ -435,7 +435,7 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
       } else {
         amount = input_.amount ?? 0;
         if (!Number.isInteger(amount) || amount <= 0) {
-          throw new AppError(422, `折讓金額須為正整數元（明細 ${line.id}）`);
+          throw new AppError(422, "折讓金額須為正整數元（明細 {lineId}）", { lineId: line.id });
         }
         // 折讓的上限是「原金額 − 已退回金額 − 已折讓金額」：貨已經退掉的部分不能再折讓一次，
         // 但貨退回來不受折讓額度的限制（數量歸數量、金額歸金額，兩個池子）
@@ -443,8 +443,8 @@ export async function createSaleReturn(db: Db, saleId: number, input: ReturnInpu
         if (amount > allowable) {
           throw new AppError(
             422,
-            `折讓金額超過可折讓額度：明細 ${line.id} 原額 ${line.amount}、已退回 ${p.returnAmount}、` +
-              `已折讓 ${p.allowanceAmount}，可折讓 ${Math.max(0, allowable)}，欲折讓 ${amount}`,
+            "折讓金額超過可折讓額度：明細 {lineId} 原額 {origAmount}、已退回 {returned}、已折讓 {allowed}，可折讓 {allowable}，欲折讓 {amount}",
+            { lineId: line.id, origAmount: line.amount, returned: p.returnAmount, allowed: p.allowanceAmount, allowable: Math.max(0, allowable), amount },
           );
         }
       }
@@ -576,17 +576,17 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
       .from(schema.purchases)
       .where(eq(schema.purchases.id, purchaseId))
       .for("update");
-    if (!purchase) throw new AppError(404, `進貨單不存在: ${purchaseId}`);
+    if (!purchase) throw new AppError(404, "進貨單不存在: {id}", { id: purchaseId });
     // 已作廢的進貨單（0025）＝當作沒進過貨，沒有可退的東西；再退就是雙重沖銷
     if (purchase.voidedAt) {
       throw new AppError(
         409,
-        `進貨單 ${purchaseId} 已作廢（理由：${purchase.voidReason ?? "未記錄"}），不可再開退出／折讓單。` +
-          `作廢已經把這張進貨整筆沖掉了；若貨其實還在，請重開一張正確的進貨單`,
+        "進貨單 {id} 已作廢（理由：{reason}），不可再開退出／折讓單。作廢已經把這張進貨整筆沖掉了；若貨其實還在，請重開一張正確的進貨單",
+        { id: purchaseId, reason: purchase.voidReason ?? "未記錄" },
       );
     }
     if (input.docDate < purchase.docDate) {
-      throw new AppError(422, `退出日 ${input.docDate} 早於原進貨日 ${purchase.docDate}`);
+      throw new AppError(422, "退出日 {docDate} 早於原進貨日 {purchaseDate}", { docDate: input.docDate, purchaseDate: purchase.docDate });
     }
     if (!input.lines.length) throw new AppError(422, "至少要有一筆退出明細");
 
@@ -605,7 +605,7 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
     const productIds: number[] = [];
     for (const input_ of input.lines) {
       const line = lineById.get(input_.sourceLineId);
-      if (!line) throw new AppError(422, `明細 ${input_.sourceLineId} 不屬於進貨單 #${purchaseId}`);
+      if (!line) throw new AppError(422, "明細 {lineId} 不屬於進貨單 #{id}", { lineId: input_.sourceLineId, id: purchaseId });
       productIds.push(line.productId);
     }
     await lockProducts(tx, productIds);
@@ -623,7 +623,7 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
     const costed: { line: typeof purchaseLines[number]; qty: number; amount: number; invCredit: number }[] = [];
     for (const input_ of input.lines) {
       const line = lineById.get(input_.sourceLineId);
-      if (!line) throw new AppError(422, `明細 ${input_.sourceLineId} 不屬於進貨單 #${purchaseId}`);
+      if (!line) throw new AppError(422, "明細 {lineId} 不屬於進貨單 #{id}", { lineId: input_.sourceLineId, id: purchaseId });
       const p = priorOf(line.id);
       const origQty = Number(line.qty);
 
@@ -631,11 +631,12 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
       let amount: number;
       if (input.kind === "return") {
         qty = input_.qty ?? 0;
-        if (qty <= 0) throw new AppError(422, `退出數量須大於 0（明細 ${line.id}）`);
+        if (qty <= 0) throw new AppError(422, "退出數量須大於 0（明細 {lineId}）", { lineId: line.id });
         if (p.qty + qty > origQty) {
           throw new AppError(
             422,
-            `退出量超過原進貨量：明細 ${line.id} 原進 ${origQty}、已退 ${p.qty}、可退 ${origQty - p.qty}，欲退 ${qty}`,
+            "退出量超過原進貨量：明細 {lineId} 原進 {origQty}、已退 {returned}、可退 {returnable}，欲退 {qty}",
+            { lineId: line.id, origQty, returned: p.qty, returnable: origQty - p.qty, qty },
           );
         }
         amount = prorateByQty({
@@ -651,14 +652,14 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
       } else {
         amount = input_.amount ?? 0;
         if (!Number.isInteger(amount) || amount <= 0) {
-          throw new AppError(422, `折讓金額須為正整數元（明細 ${line.id}）`);
+          throw new AppError(422, "折讓金額須為正整數元（明細 {lineId}）", { lineId: line.id });
         }
         const allowable = line.amount - p.returnAmount - p.allowanceAmount;
         if (amount > allowable) {
           throw new AppError(
             422,
-            `折讓金額超過可折讓額度：明細 ${line.id} 原額 ${line.amount}、已退出 ${p.returnAmount}、` +
-              `已折讓 ${p.allowanceAmount}，可折讓 ${Math.max(0, allowable)}，欲折讓 ${amount}`,
+            "折讓金額超過可折讓額度：明細 {lineId} 原額 {origAmount}、已退出 {returned}、已折讓 {allowed}，可折讓 {allowable}，欲折讓 {amount}",
+            { lineId: line.id, origAmount: line.amount, returned: p.returnAmount, allowed: p.allowanceAmount, allowable: Math.max(0, allowable), amount },
           );
         }
       }
@@ -667,7 +668,7 @@ export async function createPurchaseReturn(db: Db, purchaseId: number, input: Re
       // 數量面硬擋：讓庫存變負數之後，該商品的每一筆銷貨都會在 movingAvgUnitCost 直接 throw，
       // 而且是在一張無關的銷貨單上炸，使用者無法歸因。這道擋的脫困路徑很自然——退少一點
       if (qty > state.qty) {
-        throw new AppError(409, `庫存不足: 商品 ${line.productId} 在庫 ${state.qty}，欲退出 ${qty}`);
+        throw new AppError(409, "庫存不足: 商品 {productId} 在庫 {stockQty}，欲退出 {qty}", { productId: line.productId, stockQty: state.qty, qty });
       }
       let invCredit: number;
       if (input.kind === "return") {
@@ -853,15 +854,14 @@ export async function updateReturnCertificate(
           })
           .from(schema.purchaseReturns)
           .where(eq(schema.purchaseReturns.id, id));
-  if (!row) throw new AppError(404, `${label}不存在: ${id}`);
+  if (!row) throw new AppError(404, "{label}不存在: {id}", { label, id });
   // 已作廢的單（0030）不可再補登／修改證明單：這張單已從 401 減項與 G0401 批次排除，
   // 改它的證明單欄位不會有任何申報效果，卻會讓 G0501 作廢訊息指向一個改過的號碼
   if (row.voidedAt) {
     throw new AppError(
       409,
-      `${label} #${id} 已於 ${row.voidedAt.toISOString().slice(0, 10)} 作廢` +
-        `（理由：${row.voidReason ?? "未記錄"}），不可再補登或修改證明單。` +
-        `這筆退回／折讓若其實有效，請重開一張新單再登錄證明單`,
+      "{label} #{id} 已於 {date} 作廢（理由：{reason}），不可再補登或修改證明單。這筆退回／折讓若其實有效，請重開一張新單再登錄證明單",
+      { label, id, date: row.voidedAt.toISOString().slice(0, 10), reason: row.voidReason ?? "未記錄" },
     );
   }
 
@@ -922,7 +922,7 @@ export async function listPurchaseReturns(db: Db) {
  */
 export async function saleReturnable(db: Db, saleId: number) {
   const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, saleId));
-  if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
+  if (!sale) throw new AppError(404, "銷貨單不存在: {id}", { id: saleId });
   const lines = await db.select().from(schema.saleLines).where(eq(schema.saleLines.saleId, saleId));
   const products = lines.length
     ? await db.select().from(schema.products).where(inArray(schema.products.id, lines.map((l) => l.productId)))
@@ -959,7 +959,7 @@ export async function saleReturnable(db: Db, saleId: number) {
 
 export async function purchaseReturnable(db: Db, purchaseId: number) {
   const [purchase] = await db.select().from(schema.purchases).where(eq(schema.purchases.id, purchaseId));
-  if (!purchase) throw new AppError(404, `進貨單不存在: ${purchaseId}`);
+  if (!purchase) throw new AppError(404, "進貨單不存在: {id}", { id: purchaseId });
   const lines = await db
     .select()
     .from(schema.purchaseLines)

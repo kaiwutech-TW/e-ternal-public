@@ -1,4 +1,5 @@
 /** HR 共用型別與文案（Attendance／Hr／Payroll 三頁共用，避免三份標籤漂移） */
+import { t } from "../i18n.ts";
 
 export interface LeaveType {
   id: number;
@@ -86,7 +87,7 @@ export const DAY_TYPE_LABELS: Record<string, string> = {
 export const fmtMinutes = (m: number): string => {
   const h = Math.floor(m / 60);
   const r = m % 60;
-  return r === 0 ? `${h} 時` : `${h} 時 ${r} 分`;
+  return r === 0 ? t("{h} 時", { h }) : t("{h} 時 {r} 分", { h, r });
 };
 
 /** 申請單的內容一句話（三種 kind 各自的重點欄位） */
@@ -95,10 +96,11 @@ export function requestSummary(r: HrRequest): string {
     const span = r.startAt && r.endAt
       ? `${new Date(r.startAt).toLocaleString("zh-TW", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} ~ ${new Date(r.endAt).toLocaleString("zh-TW", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
       : "";
-    return `${r.leaveTypeName ?? "？"} ${span}（${fmtMinutes(r.minutes ?? 0)}）`;
+    return t("{name} {span}（{dur}）", { name: r.leaveTypeName ?? t("？"), span, dur: fmtMinutes(r.minutes ?? 0) });
   }
   if (r.kind === "overtime") {
-    return `${r.workDate} ${DAY_TYPE_LABELS[r.dayType ?? ""] ?? r.dayType}（${fmtMinutes(r.minutes ?? 0)}）`;
+    const dayLabel = DAY_TYPE_LABELS[r.dayType ?? ""];
+    return t("{date} {dayType}（{dur}）", { date: r.workDate, dayType: dayLabel ? t(dayLabel) : r.dayType, dur: fmtMinutes(r.minutes ?? 0) });
   }
-  return `${r.workDate} ${r.direction === "in" ? "上班" : "下班"}卡補 ${r.claimedTime}`;
+  return t(r.direction === "in" ? "{date} 上班卡補 {time}" : "{date} 下班卡補 {time}", { date: r.workDate, time: r.claimedTime });
 }

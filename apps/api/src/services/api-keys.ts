@@ -27,7 +27,7 @@ export async function createApiKey(
   input: { name: string; userId: number; createdBy: number },
 ): Promise<NewKeyResult> {
   const [target] = await db.select().from(schema.users).where(eq(schema.users.id, input.userId));
-  if (!target) throw new AppError(404, `使用者不存在: ${input.userId}`);
+  if (!target) throw new AppError(404, "使用者不存在: {userId}", { userId: input.userId });
   if (!target.active) throw new AppError(422, "不能為已停用的帳號建立金鑰");
 
   const secret = randomBytes(24).toString("base64url");
@@ -105,5 +105,5 @@ export async function revokeApiKey(db: Db, id: number): Promise<void> {
     .set({ revokedAt: new Date() })
     .where(and(eq(schema.apiKeys.id, id), isNull(schema.apiKeys.revokedAt)))
     .returning();
-  if (!row) throw new AppError(404, `金鑰不存在或已撤銷: ${id}`);
+  if (!row) throw new AppError(404, "金鑰不存在或已撤銷: {id}", { id });
 }

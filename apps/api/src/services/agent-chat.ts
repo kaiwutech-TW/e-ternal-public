@@ -267,7 +267,7 @@ function anthropicCall(apiKey: string, model: string, baseUrl: string | null): L
       error?: { message?: string };
     };
     if (!res.ok) {
-      throw new AppError(502, `LLM 供應商回應錯誤（${res.status}）：${data.error?.message ?? "未知錯誤"}。請到「設定 → Agent 接入」檢查型號與金鑰`);
+      throw new AppError(502, "LLM 供應商回應錯誤（{status}）：{message}。請到「設定 → Agent 接入」檢查型號與金鑰", { status: res.status, message: data.error?.message ?? "未知錯誤" });
     }
     const blocks = data.content ?? [];
     return {
@@ -319,7 +319,7 @@ function openaiCall(apiKey: string | null, model: string, endpoint: string): Llm
       error?: { message?: string };
     };
     if (!res.ok) {
-      throw new AppError(502, `LLM 供應商回應錯誤（${res.status}）：${data.error?.message ?? "未知錯誤"}。請到「設定 → Agent 接入」檢查型號與金鑰`);
+      throw new AppError(502, "LLM 供應商回應錯誤（{status}）：{message}。請到「設定 → Agent 接入」檢查型號與金鑰", { status: res.status, message: data.error?.message ?? "未知錯誤" });
     }
     const msg = data.choices?.[0]?.message;
     return {
@@ -385,7 +385,7 @@ function geminiCall(apiKey: string, model: string, endpoint: string): LlmCall {
       error?: { message?: string };
     };
     if (!res.ok) {
-      throw new AppError(502, `LLM 供應商回應錯誤（${res.status}）：${data.error?.message ?? "未知錯誤"}。請到「設定 → Agent 接入」檢查型號與金鑰`);
+      throw new AppError(502, "LLM 供應商回應錯誤（{status}）：{message}。請到「設定 → Agent 接入」檢查型號與金鑰", { status: res.status, message: data.error?.message ?? "未知錯誤" });
     }
     const parts = data.candidates?.[0]?.content?.parts ?? [];
     let seq = 0;
@@ -430,7 +430,7 @@ export async function resolveLlm(db: Db): Promise<LlmCall> {
   }
   const baseUrl = settings.provider === "openai" ? (settings.baseUrl ?? "https://api.openai.com") : settings.baseUrl;
   if (!baseUrl) {
-    throw new AppError(422, `${settings.provider} 需要在「設定 → Agent 接入」填 Base URL（OpenAI 相容端點）`);
+    throw new AppError(422, "{provider} 需要在「設定 → Agent 接入」填 Base URL（OpenAI 相容端點）", { provider: settings.provider });
   }
   return openaiCall(apiKey, settings.model, `${baseUrl.replace(/\/$/, "")}/v1/chat/completions`);
 }

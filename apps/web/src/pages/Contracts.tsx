@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "../api.ts";
 import { useAuth } from "../auth.ts";
 import { fmt, useFetch } from "../hooks.ts";
+import { useT } from "../i18n.ts";
 import type { BillingDueRow, ContractRow, DocRow, InstallmentRow, Partner, Product } from "../types.ts";
 
+/** 中文＝字典 key，使用處 t() */
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
   active: "生效中",
@@ -42,6 +44,7 @@ function InstallmentPanel({
   canWrite: boolean;
   onError: (msg: string | null) => void;
 }) {
+  const t = useT();
   const [items, setItems] = useState<InstallmentRow[] | null>(null);
   const [billingId, setBillingId] = useState<number | null>(null);
   const [productId, setProductId] = useState(0);
@@ -128,17 +131,19 @@ function InstallmentPanel({
   return (
     <tr>
       <td colSpan={10} style={{ background: "var(--bg)", padding: 12 }}>
-        <strong>{isPurchase ? "付款計畫" : "請款計畫"}</strong>
-        （金額為未稅；{isPurchase ? "已對上" : "已請"} {fmt(billed)}／已排 {fmt(planned)}
+        <strong>{isPurchase ? t("付款計畫") : t("請款計畫")}</strong>
+        {isPurchase
+          ? t("（金額為未稅；已對上 {billed}／已排 {planned}", { billed: fmt(billed), planned: fmt(planned) })
+          : t("（金額為未稅；已請 {billed}／已排 {planned}", { billed: fmt(billed), planned: fmt(planned) })}
         {contract.amount != null && planned !== contract.amount && (
           <span style={{ color: "var(--amber)" }}>
-            ；與合約金額 {fmt(contract.amount)} 不一致——可能是保留款或未排完，請自行確認
+            {t("；與合約金額 {amount} 不一致——可能是保留款或未排完，請自行確認", { amount: fmt(contract.amount) })}
           </span>
         )}
-        ）
+        {t("）")}
         <table style={{ marginTop: 8 }}>
           <thead>
-            <tr><th>期</th><th>{isPurchase ? "預計付款日" : "預計請款日"}</th><th className="num">金額（未稅）</th><th>說明</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("期")}</th><th>{isPurchase ? t("預計付款日") : t("預計請款日")}</th><th className="num">{t("金額（未稅）")}</th><th>{t("說明")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {items?.map((i) => (
@@ -149,48 +154,48 @@ function InstallmentPanel({
                 <td>{i.description}</td>
                 <td>
                   {i.billed ? (
-                    <span className="badge issued">{i.purchaseId !== null ? `已勾對進貨單 #${i.purchaseId}` : `已開單 #${i.saleId}`}</span>
+                    <span className="badge issued">{i.purchaseId !== null ? t("已勾對進貨單 #{id}", { id: i.purchaseId }) : t("已開單 #{id}", { id: i.saleId })}</span>
                   ) : (
-                    <span className="badge canceled">{isPurchase ? "未對上" : "未請款"}</span>
+                    <span className="badge canceled">{isPurchase ? t("未對上") : t("未請款")}</span>
                   )}
                 </td>
                 <td>
                   {canWrite && i.billed && isPurchase && i.purchaseId !== null && (
-                    <button className="small" onClick={() => void unmatch(i.id)}>解除勾對</button>
+                    <button className="small" onClick={() => void unmatch(i.id)}>{t("解除勾對")}</button>
                   )}
                   {canWrite && !i.billed && contract.status === "active" && (
                     billingId === i.id ? (
                       isPurchase ? (
                         <>
                           <select value={purchaseId} onChange={(e) => setPurchaseId(Number(e.target.value))}>
-                            <option value={0}>— 勾對哪張進貨單 —</option>
+                            <option value={0}>{t("— 勾對哪張進貨單 —")}</option>
                             {openCandidates.map((p) => (
-                              <option key={p.id} value={p.id}>#{p.id}｜{p.docDate}｜未稅 {fmt(p.subtotal)}</option>
+                              <option key={p.id} value={p.id}>{t("#{id}｜{date}｜未稅 {subtotal}", { id: p.id, date: p.docDate, subtotal: fmt(p.subtotal) })}</option>
                             ))}
                           </select>{" "}
-                          <button className="small" disabled={!purchaseId} onClick={() => void match(i.id)}>確認勾對</button>{" "}
-                          <button className="small" onClick={() => setBillingId(null)}>取消</button>
+                          <button className="small" disabled={!purchaseId} onClick={() => void match(i.id)}>{t("確認勾對")}</button>{" "}
+                          <button className="small" onClick={() => setBillingId(null)}>{t("取消")}</button>
                         </>
                       ) : (
                         <>
                           <select value={productId} onChange={(e) => setProductId(Number(e.target.value))}>
-                            <option value={0}>— 用哪個服務項目開單 —</option>
+                            <option value={0}>{t("— 用哪個服務項目開單 —")}</option>
                             {serviceProducts.map((p) => (
                               <option key={p.id} value={p.id}>{p.sku} {p.name}</option>
                             ))}
                           </select>{" "}
-                          <button className="small" disabled={!productId} onClick={() => void bill(i.id)}>確認開單</button>{" "}
-                          <button className="small" onClick={() => setBillingId(null)}>取消</button>
+                          <button className="small" disabled={!productId} onClick={() => void bill(i.id)}>{t("確認開單")}</button>{" "}
+                          <button className="small" onClick={() => setBillingId(null)}>{t("取消")}</button>
                         </>
                       )
                     ) : (
                       <>
-                        <button className="small" onClick={() => setBillingId(i.id)}>{isPurchase ? "勾對進貨單" : "開銷貨單"}</button>{" "}
+                        <button className="small" onClick={() => setBillingId(i.id)}>{isPurchase ? t("勾對進貨單") : t("開銷貨單")}</button>{" "}
                         <button
                           className="small"
                           onClick={() => void act(() => api.delete(`/contracts/${contract.id}/installments/${i.id}`))}
                         >
-                          刪除
+                          {t("刪除")}
                         </button>
                       </>
                     )
@@ -200,40 +205,39 @@ function InstallmentPanel({
             ))}
           </tbody>
         </table>
-        {items?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{isPurchase ? "尚未排付款計畫。" : "尚未排請款計畫。"}</p>}
+        {items?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{isPurchase ? t("尚未排付款計畫。") : t("尚未排請款計畫。")}</p>}
         {canWrite && contract.status !== "terminated" && (
           <>
             <form className="inline" style={{ marginTop: 8 }} onSubmit={addRow}>
-              <label className="field">{isPurchase ? "付款日" : "請款日"}<input name="dueDate" type="date" required /></label>
-              <label className="field">金額（未稅）<input name="amount" type="number" min={1} required /></label>
-              <label className="field">說明<input name="description" placeholder={isPurchase ? "第一季授權費…" : "簽約金 30%…"} /></label>
-              <button className="small">＋加一期</button>
+              <label className="field">{isPurchase ? t("付款日") : t("請款日")}<input name="dueDate" type="date" required /></label>
+              <label className="field">{t("金額（未稅）")}<input name="amount" type="number" min={1} required /></label>
+              <label className="field">{t("說明")}<input name="description" placeholder={isPurchase ? t("第一季授權費…") : t("簽約金 30%…")} /></label>
+              <button className="small">{t("＋加一期")}</button>
             </form>
             {contract.kind === "retainer" && (
               <form className="inline" style={{ marginTop: 4 }} onSubmit={generate}>
-                <label className="field">月費（未稅）<input name="monthlyAmount" type="number" min={1} required /></label>
-                <label className="field">{isPurchase ? "每月幾號付款" : "每月幾號請款"}<input name="dayOfMonth" type="number" min={1} max={31} defaultValue={1} required /></label>
-                <label className="field">從<input name="from" type="date" defaultValue={contract.startDate} required /></label>
-                <label className="field">到<input name="to" type="date" defaultValue={contract.endDate ?? ""} required /></label>
-                <button className="small">一鍵展開整段月費排程</button>
+                <label className="field">{t("月費（未稅）")}<input name="monthlyAmount" type="number" min={1} required /></label>
+                <label className="field">{isPurchase ? t("每月幾號付款") : t("每月幾號請款")}<input name="dayOfMonth" type="number" min={1} max={31} defaultValue={1} required /></label>
+                <label className="field">{t("從")}<input name="from" type="date" defaultValue={contract.startDate} required /></label>
+                <label className="field">{t("到")}<input name="to" type="date" defaultValue={contract.endDate ?? ""} required /></label>
+                <button className="small">{t("一鍵展開整段月費排程")}</button>
               </form>
             )}
           </>
         )}
         {isPurchase && contract.partnerId === null && canWrite && (
           <p style={{ fontSize: 13, color: "var(--amber)" }}>
-            這份合約沒有連結供應商——勾對進貨單前請先在合約上選擇交易對象。
+            {t("這份合約沒有連結供應商——勾對進貨單前請先在合約上選擇交易對象。")}
           </p>
         )}
         {isPurchase && contract.partnerId !== null && openCandidates.length === 0 && canWrite && (
           <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-            這個供應商目前沒有可勾對的進貨單。對方發票寄到後，先到「進貨」登記進貨單，再回這裡勾對。
+            {t("這個供應商目前沒有可勾對的進貨單。對方發票寄到後，先到「進貨」登記進貨單，再回這裡勾對。")}
           </p>
         )}
         {!isPurchase && serviceProducts.length === 0 && canWrite && (
           <p style={{ fontSize: 13, color: "var(--amber)" }}>
-            開單前請先到「客戶與商品」建一個服務項目（勾「服務」，例如「顧問服務費」）——
-            合約請款開的是銷貨單，需要一個服務項目當品項。
+            {t("開單前請先到「客戶與商品」建一個服務項目（勾「服務」，例如「顧問服務費」）——合約請款開的是銷貨單，需要一個服務項目當品項。")}
           </p>
         )}
       </td>
@@ -242,6 +246,7 @@ function InstallmentPanel({
 }
 
 export function Contracts() {
+  const t = useT();
   // R21：sales/purchasing/gm 唯讀（API 的寫入限 admin/finance）——合約是他們談的、
   // 到期提醒最該給他們看，但金額與狀態是財務數字的依據，登記與修改歸口財務
   const me = useAuth();
@@ -291,7 +296,7 @@ export function Contracts() {
     reader.onload = () => {
       const data = String(reader.result);
       if (data.length > 5_000_000) {
-        setError("附件過大（上限約 3.5MB），請壓縮後再上傳");
+        setError(t("附件過大（上限約 3.5MB），請壓縮後再上傳"));
         setFile(null);
         return;
       }
@@ -380,27 +385,32 @@ export function Contracts() {
       {error && <div className="error sticky-alert">{error}</div>}
       {(soonCount > 0 || expiredCount > 0) && (
         <div className="error" style={{ background: "var(--amber-tint)", color: "var(--amber)" }}>
-          {expiredCount > 0 && `有 ${expiredCount} 份生效中合約已過截止日，請處理續約或結案。`}
-          {soonCount > 0 && ` ${soonCount} 份合約將於 ${EXPIRY_SOON_DAYS} 天內到期。`}
+          {expiredCount > 0 && t("有 {n} 份生效中合約已過截止日，請處理續約或結案。", { n: expiredCount })}
+          {soonCount > 0 && ` ${t("{n} 份合約將於 {days} 天內到期。", { n: soonCount, days: EXPIRY_SOON_DAYS })}`}
         </div>
       )}
 
       {(["sale", "purchase"] as const).map((dir) => {
         const due = billingDue.data?.filter((d) => d.direction === dir) ?? [];
         if (!due.length) return null;
+        const hasOverdue = due.some((d) => d.overdue);
         return (
           <div className="card" key={dir}>
-            <h3>{dir === "sale" ? "待請款" : "待付款"}（30 天內{due.some((d) => d.overdue) && "，含逾期"}）</h3>
+            <h3>
+              {dir === "sale"
+                ? (hasOverdue ? t("待請款（30 天內，含逾期）") : t("待請款（30 天內）"))
+                : (hasOverdue ? t("待付款（30 天內，含逾期）") : t("待付款（30 天內）"))}
+            </h3>
             <table>
               <thead>
-                <tr><th>合約</th><th>期</th><th>{dir === "sale" ? "預計請款日" : "預計付款日"}</th><th className="num">金額（未稅）</th><th>說明</th></tr>
+                <tr><th>{t("合約")}</th><th>{t("期")}</th><th>{dir === "sale" ? t("預計請款日") : t("預計付款日")}</th><th className="num">{t("金額（未稅）")}</th><th>{t("說明")}</th></tr>
               </thead>
               <tbody>
                 {due.map((d) => (
                   <tr key={d.installmentId} style={d.overdue ? { background: "var(--red-tint)" } : undefined}>
                     <td>#{d.contractId} {d.contractTitle}（{d.counterparty}）</td>
                     <td>{d.seq}</td>
-                    <td>{d.dueDate}{d.overdue && "（已逾期）"}</td>
+                    <td>{d.dueDate}{d.overdue && t("（已逾期）")}</td>
                     <td className="num">{fmt(d.amount)}</td>
                     <td>{d.description}</td>
                   </tr>
@@ -409,8 +419,8 @@ export function Contracts() {
             </table>
             <p style={{ fontSize: 13, color: "var(--text-2)" }}>
               {dir === "sale"
-                ? "點下方清單的「請款計畫」展開該合約即可開單。"
-                : "對方發票寄到後先登記進貨單，再到下方「付款計畫」勾對；這裡是現金流的預告。"}
+                ? t("點下方清單的「請款計畫」展開該合約即可開單。")
+                : t("對方發票寄到後先登記進貨單，再到下方「付款計畫」勾對；這裡是現金流的預告。")}
             </p>
           </div>
         );
@@ -418,30 +428,30 @@ export function Contracts() {
 
       {canWrite && (
       <div className="card">
-        <h3>登記合約</h3>
+        <h3>{t("登記合約")}</h3>
         <form className="inline" onSubmit={add}>
           <label className="field">
-            方向
+            {t("方向")}
             <select value={formDirection} onChange={(e) => setFormDirection(e.target.value as "sale" | "purchase")}>
               {Object.entries(DIRECTION_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
+                <option key={v} value={v}>{t(label)}</option>
               ))}
             </select>
           </label>
-          <label className="field">合約名稱<input name="title" required /></label>
+          <label className="field">{t("合約名稱")}<input name="title" required /></label>
           <label className="field">
-            類型
+            {t("類型")}
             <select name="kind" defaultValue="project">
               {Object.entries(KIND_LABEL).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
+                <option key={v} value={v}>{t(label)}</option>
               ))}
             </select>
           </label>
-          <label className="field">對方名稱<input name="counterparty" required /></label>
+          <label className="field">{t("對方名稱")}<input name="counterparty" required /></label>
           <label className="field">
-            關聯交易對象（選填）
+            {t("關聯交易對象（選填）")}
             <select name="partnerId" defaultValue={0}>
-              <option value={0}>— 無 —</option>
+              <option value={0}>{t("— 無 —")}</option>
               {partners.data
                 ?.filter((p) => (formDirection === "sale" ? p.isCustomer : p.isSupplier))
                 .map((p) => (
@@ -449,37 +459,37 @@ export function Contracts() {
                 ))}
             </select>
           </label>
-          <label className="field">金額（選填）<input name="amount" type="number" min={0} /></label>
-          <label className="field">簽約日<input name="signDate" type="date" /></label>
-          <label className="field">生效日<input name="startDate" type="date" required /></label>
-          <label className="field">截止日（選填）<input name="endDate" type="date" /></label>
-          <label className="field">備註<input name="memo" /></label>
-          <label className="field">附件（PDF/圖片）<input type="file" accept=".pdf,image/*" onChange={(e) => onFile(e.target.files?.[0] ?? null)} /></label>
-          <button className="primary">登記</button>
+          <label className="field">{t("金額（選填）")}<input name="amount" type="number" min={0} /></label>
+          <label className="field">{t("簽約日")}<input name="signDate" type="date" /></label>
+          <label className="field">{t("生效日")}<input name="startDate" type="date" required /></label>
+          <label className="field">{t("截止日（選填）")}<input name="endDate" type="date" /></label>
+          <label className="field">{t("備註")}<input name="memo" /></label>
+          <label className="field">{t("附件（PDF/圖片）")}<input type="file" accept=".pdf,image/*" onChange={(e) => onFile(e.target.files?.[0] ?? null)} /></label>
+          <button className="primary">{t("登記")}</button>
         </form>
       </div>
       )}
 
       <div className="card">
         <h3>
-          合約清單{" "}
+          {t("合約清單")}{" "}
           <select style={{ fontSize: 13, fontWeight: 400 }} value={dirFilter} onChange={(e) => setDirFilter(e.target.value as "" | "sale" | "purchase")}>
-            <option value="">全部方向</option>
-            <option value="sale">銷貨（我方請款）</option>
-            <option value="purchase">進貨（我方付款）</option>
+            <option value="">{t("全部方向")}</option>
+            <option value="sale">{t("銷貨（我方請款）")}</option>
+            <option value="purchase">{t("進貨（我方付款）")}</option>
           </select>
         </h3>
         <table>
           <thead>
-            <tr><th>編號</th><th>方向</th><th>類型</th><th>名稱</th><th>對方</th><th className="num">金額</th><th>生效日</th><th>截止日</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("編號")}</th><th>{t("方向")}</th><th>{t("類型")}</th><th>{t("名稱")}</th><th>{t("對方")}</th><th className="num">{t("金額")}</th><th>{t("生效日")}</th><th>{t("截止日")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {contracts.data?.filter((c) => !dirFilter || c.direction === dirFilter).map((c) => (
               <>
               <tr key={c.id} style={expired(c) ? { background: "var(--red-tint)" } : expiringSoon(c) ? { background: "var(--amber-tint)" } : undefined}>
-                <td>#{c.id}{c.renewedFromId && <span style={{ fontSize: 12, color: "var(--text-2)" }}>（續自 #{c.renewedFromId}）</span>}</td>
-                <td>{c.direction === "purchase" ? "進貨" : "銷貨"}</td>
-                <td>{KIND_LABEL[c.kind] ?? c.kind}</td>
+                <td>#{c.id}{c.renewedFromId && <span style={{ fontSize: 12, color: "var(--text-2)" }}>{t("（續自 #{id}）", { id: c.renewedFromId })}</span>}</td>
+                <td>{c.direction === "purchase" ? t("進貨") : t("銷貨")}</td>
+                <td>{t(KIND_LABEL[c.kind] ?? c.kind)}</td>
                 <td>
                   {editingId === c.id ? (
                     <input style={{ width: 140 }} value={edit.title} onChange={(e) => setEdit((v) => ({ ...v, title: e.target.value }))} />
@@ -502,38 +512,38 @@ export function Contracts() {
                   {editingId === c.id ? (
                     <input type="date" value={edit.endDate} onChange={(e) => setEdit((v) => ({ ...v, endDate: e.target.value }))} />
                   ) : (
-                    <>{c.endDate ?? "—"}{expiringSoon(c) && "（將到期）"}{expired(c) && "（已逾期）"}</>
+                    <>{c.endDate ?? "—"}{expiringSoon(c) && t("（將到期）")}{expired(c) && t("（已逾期）")}</>
                   )}
                 </td>
-                <td><span className={`badge ${c.status === "active" ? "issued" : "canceled"}`}>{STATUS_LABEL[c.status]}</span></td>
+                <td><span className={`badge ${c.status === "active" ? "issued" : "canceled"}`}>{t(STATUS_LABEL[c.status] ?? c.status)}</span></td>
                 <td>
                   {editingId === c.id ? (
                     <>
-                      <button className="small" onClick={() => void saveEdit(c.id)}>儲存</button>{" "}
-                      <button className="small" onClick={() => setEditingId(null)}>取消</button>
+                      <button className="small" onClick={() => void saveEdit(c.id)}>{t("儲存")}</button>{" "}
+                      <button className="small" onClick={() => setEditingId(null)}>{t("取消")}</button>
                     </>
                   ) : (
                     <>
-                      {c.hasFile && <button className="small" onClick={() => void downloadFile(c.id)}>附件</button>}{" "}
+                      {c.hasFile && <button className="small" onClick={() => void downloadFile(c.id)}>{t("附件")}</button>}{" "}
                       {canWrite && (
                         <>
-                          <button className="small" onClick={() => startEdit(c)}>編輯</button>{" "}
+                          <button className="small" onClick={() => startEdit(c)}>{t("編輯")}</button>{" "}
                           {c.status === "active" && (
                             <>
-                              <button className="small" onClick={() => void setStatus(c.id, "ended")}>結案</button>{" "}
-                              <button className="small" onClick={() => void setStatus(c.id, "terminated")}>終止</button>
+                              <button className="small" onClick={() => void setStatus(c.id, "ended")}>{t("結案")}</button>{" "}
+                              <button className="small" onClick={() => void setStatus(c.id, "terminated")}>{t("終止")}</button>
                             </>
                           )}
                           {c.status === "draft" && (
-                            <button className="small" onClick={() => void setStatus(c.id, "active")}>生效</button>
+                            <button className="small" onClick={() => void setStatus(c.id, "active")}>{t("生效")}</button>
                           )}
                           {(expiringSoon(c) || expired(c)) && (
-                            <button className="small" onClick={() => void renew(c)}>續約</button>
+                            <button className="small" onClick={() => void renew(c)}>{t("續約")}</button>
                           )}
                         </>
                       )}{" "}
                       <button className="small" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
-                        {expandedId === c.id ? "收合" : c.direction === "purchase" ? "付款計畫" : "請款計畫"}
+                        {expandedId === c.id ? t("收合") : c.direction === "purchase" ? t("付款計畫") : t("請款計畫")}
                       </button>
                     </>
                   )}

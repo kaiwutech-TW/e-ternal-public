@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
+import type { Translator } from "@tw-erp/core";
+import { useT } from "../i18n.ts";
 import { fmt, useFetch } from "../hooks.ts";
 import type { Account, Partner } from "../types.ts";
 
@@ -49,9 +51,13 @@ const INTERVALS = [
   { months: 12, label: "每年（12 個月）" },
 ];
 
-const intervalLabel = (n: number) => INTERVALS.find((i) => i.months === n)?.label ?? `每 ${n} 個月`;
+const intervalLabel = (t: Translator, n: number) => {
+  const found = INTERVALS.find((i) => i.months === n);
+  return found ? t(found.label) : t("每 {n} 個月", { n });
+};
 
 function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string | null) => void }) {
+  const t = useT();
   const [items, setItems] = useState<Item[] | null>(null);
   const [settlingId, setSettlingId] = useState<number | null>(null);
   const [mode, setMode] = useState<"claim" | "entry">("entry");
@@ -79,7 +85,7 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
   return (
     <tr>
       <td colSpan={8} style={{ background: "var(--bg)", padding: 12 }}>
-        <strong>付款計畫</strong>（已結清 {fmt(settled)}／已排 {fmt(planned)}）
+        <strong>{t("付款計畫")}</strong>{t("（已結清 {settled}／已排 {planned}）", { settled: fmt(settled), planned: fmt(planned) })}
         <form
           className="inline"
           style={{ marginTop: 8 }}
@@ -90,15 +96,15 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
           }}
         >
           <label className="field">
-            展開到
+            {t("展開到")}
             <input name="to" type="date" required defaultValue={payable.endDate ?? ""} />
           </label>
-          <button className="small">依「{intervalLabel(payable.intervalMonths)}、{payable.dayOfMonth} 號」展開排程</button>
+          <button className="small">{t("依「{interval}、{day} 號」展開排程", { interval: intervalLabel(t, payable.intervalMonths), day: payable.dayOfMonth })}</button>
         </form>
         {items && items.length > 0 && (
           <table style={{ marginTop: 8 }}>
             <thead>
-              <tr><th>期</th><th>預計付款日</th><th className="num">金額</th><th>說明</th><th>狀態</th><th></th></tr>
+              <tr><th>{t("期")}</th><th>{t("預計付款日")}</th><th className="num">{t("金額")}</th><th>{t("說明")}</th><th>{t("狀態")}</th><th></th></tr>
             </thead>
             <tbody>
               {items.map((i) => (
@@ -110,28 +116,28 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
                   <td>
                     {i.settled ? (
                       <span className="badge issued">
-                        {i.expenseClaimId !== null ? `報銷單 #${i.expenseClaimId}` : `傳票 #${i.journalEntryId}`}
+                        {i.expenseClaimId !== null ? t("報銷單 #{id}", { id: i.expenseClaimId }) : t("傳票 #{id}", { id: i.journalEntryId })}
                       </span>
                     ) : (
-                      <span className="badge canceled">未結清</span>
+                      <span className="badge canceled">{t("未結清")}</span>
                     )}
                   </td>
                   <td>
                     {i.settled ? (
                       <button className="small" onClick={() => void act(() => api.post(`/recurring-payables/${payable.id}/items/${i.id}/unsettle`, {}))}>
-                        解除結清
+                        {t("解除結清")}
                       </button>
                     ) : settlingId === i.id ? (
                       <>
                         <select value={mode} onChange={(e) => setMode(e.target.value as "claim" | "entry")}>
-                          <option value="entry">手工傳票</option>
-                          <option value="claim">報銷單</option>
+                          <option value="entry">{t("手工傳票")}</option>
+                          <option value="claim">{t("報銷單")}</option>
                         </select>{" "}
                         <input
                           style={{ width: 90 }}
                           type="number"
                           min={1}
-                          placeholder="單號"
+                          placeholder={t("單號")}
                           value={docId}
                           onChange={(e) => setDocId(e.target.value)}
                         />{" "}
@@ -146,14 +152,14 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
                             )
                           }
                         >
-                          確認結清
+                          {t("確認結清")}
                         </button>{" "}
-                        <button className="small" onClick={() => setSettlingId(null)}>取消</button>
+                        <button className="small" onClick={() => setSettlingId(null)}>{t("取消")}</button>
                       </>
                     ) : (
                       <>
-                        <button className="small" onClick={() => setSettlingId(i.id)}>結清</button>{" "}
-                        <button className="small" onClick={() => void act(() => api.delete(`/recurring-payables/${payable.id}/items/${i.id}`))}>刪除</button>
+                        <button className="small" onClick={() => setSettlingId(i.id)}>{t("結清")}</button>{" "}
+                        <button className="small" onClick={() => void act(() => api.delete(`/recurring-payables/${payable.id}/items/${i.id}`))}>{t("刪除")}</button>
                       </>
                     )}
                   </td>
@@ -163,10 +169,7 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
           </table>
         )}
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          結清＝把你**已經開好**的那張單指過來，這裡不會生成任何單據，也不會產生任何分錄。
-          付款走報銷單（費用報銷頁，選「公司支付」）或手工傳票（傳票頁）都可以；
-          房租、軟體訂閱、專業服務費目前不在報銷分類清單裡，走手工傳票。
-          指向的報銷單被作廢，這一期會自動回到未結清。
+          {t("結清＝把你**已經開好**的那張單指過來，這裡不會生成任何單據，也不會產生任何分錄。付款走報銷單（費用報銷頁，選「公司支付」）或手工傳票（傳票頁）都可以；房租、軟體訂閱、專業服務費目前不在報銷分類清單裡，走手工傳票。指向的報銷單被作廢，這一期會自動回到未結清。")}
         </p>
       </td>
     </tr>
@@ -174,6 +177,7 @@ function ItemPanel({ payable, onError }: { payable: Payable; onError: (m: string
 }
 
 export function RecurringPayables() {
+  const t = useT();
   const payables = useFetch<Payable[]>("/recurring-payables");
   const partners = useFetch<Partner[]>("/partners");
   const accounts = useFetch<Account[]>("/accounts");
@@ -201,7 +205,7 @@ export function RecurringPayables() {
       {ok && <div className="ok">{ok}</div>}
 
       <div className="card">
-        <h3>新增一筆固定支出</h3>
+        <h3>{t("新增一筆固定支出")}</h3>
         <form
           className="inline"
           onSubmit={(e) => {
@@ -224,31 +228,31 @@ export function RecurringPayables() {
               });
               form.reset();
               payables.reload();
-            }, "已新增。展開排程後，到期的期會出現在首頁");
+            }, t("已新增。展開排程後，到期的期會出現在首頁"));
           }}
         >
-          <label className="field">名稱<input name="name" required style={{ width: 160 }} /></label>
+          <label className="field">{t("名稱")}<input name="name" required style={{ width: 160 }} /></label>
           <label className="field">
-            多久一次
+            {t("多久一次")}
             <select name="intervalMonths" defaultValue={1}>
-              {INTERVALS.map((i) => <option key={i.months} value={i.months}>{i.label}</option>)}
+              {INTERVALS.map((i) => <option key={i.months} value={i.months}>{t(i.label)}</option>)}
             </select>
           </label>
-          <label className="field">幾號<input name="dayOfMonth" type="number" min={1} max={31} defaultValue={5} required style={{ width: 70 }} /></label>
-          <label className="field">每期金額<input name="defaultAmount" type="number" min={0} required style={{ width: 110 }} /></label>
-          <label className="field">從<input name="startDate" type="date" required /></label>
-          <label className="field">到（選填）<input name="endDate" type="date" /></label>
+          <label className="field">{t("幾號")}<input name="dayOfMonth" type="number" min={1} max={31} defaultValue={5} required style={{ width: 70 }} /></label>
+          <label className="field">{t("每期金額")}<input name="defaultAmount" type="number" min={0} required style={{ width: 110 }} /></label>
+          <label className="field">{t("從")}<input name="startDate" type="date" required /></label>
+          <label className="field">{t("到（選填）")}<input name="endDate" type="date" /></label>
           <label className="field">
-            對象（選填）
+            {t("對象（選填）")}
             <select name="partnerId" defaultValue={0}>
-              <option value={0}>— 無 —</option>
+              <option value={0}>{t("— 無 —")}</option>
               {partners.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
           <label className="field">
-            費用科目（選填）
+            {t("費用科目（選填）")}
             <select name="defaultAccountCode" defaultValue="">
-              <option value="">— 無 —</option>
+              <option value="">{t("— 無 —")}</option>
               {accounts.data?.filter((a) => a.type === "expense" && a.active).map((a) => (
                 <option key={a.id} value={a.code}>{a.code} {a.name}</option>
               ))}
@@ -256,43 +260,41 @@ export function RecurringPayables() {
           </label>
           {/* placeholder 刻意不舉任何例子：舉了就會被照抄，「自己查、自己留出處」的設計會失效 */}
           <label className="field" style={{ minWidth: 260 }}>
-            依據（必填）<input name="basis" required placeholder="這個金額與頻率是從哪裡來的" />
+            {t("依據（必填）")}<input name="basis" required placeholder={t("這個金額與頻率是從哪裡來的")} />
           </label>
-          <label className="field">備註<input name="memo" /></label>
-          <button className="primary">新增</button>
+          <label className="field">{t("備註")}<input name="memo" /></label>
+          <button className="primary">{t("新增")}</button>
         </form>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          這一頁是**計畫**：不會產生任何分錄，也不會進應付帳款。
-          金額與頻率全部由你填，系統只做日期算術——它不知道、也不會告訴你什麼錢該多久付一次、
-          什麼時候該付。展開排程後，接近付款日的期會出現在首頁。
+          {t("這一頁是**計畫**：不會產生任何分錄，也不會進應付帳款。金額與頻率全部由你填，系統只做日期算術——它不知道、也不會告訴你什麼錢該多久付一次、什麼時候該付。展開排程後，接近付款日的期會出現在首頁。")}
         </p>
       </div>
 
       <div className="card">
         <h3>
-          固定支出清單{" "}
+          {t("固定支出清單")}{" "}
           <label style={{ fontSize: 13, fontWeight: 400 }}>
-            <input type="checkbox" checked={showEnded} onChange={(e) => setShowEnded(e.target.checked)} /> 含已停用
+            <input type="checkbox" checked={showEnded} onChange={(e) => setShowEnded(e.target.checked)} /> {t("含已停用")}
           </label>
         </h3>
         <table>
           <thead>
-            <tr><th>名稱</th><th>頻率</th><th className="num">每期金額</th><th>對象</th><th>科目</th><th>依據</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("名稱")}</th><th>{t("頻率")}</th><th className="num">{t("每期金額")}</th><th>{t("對象")}</th><th>{t("科目")}</th><th>{t("依據")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {rows.map((p) => (
               <>
                 <tr key={p.id}>
                   <td>{p.name}</td>
-                  <td>{intervalLabel(p.intervalMonths)}・{p.dayOfMonth} 號</td>
+                  <td>{t("{interval}・{day} 號", { interval: intervalLabel(t, p.intervalMonths), day: p.dayOfMonth })}</td>
                   <td className="num">{fmt(p.defaultAmount)}</td>
                   <td>{p.partnerName ?? "—"}</td>
                   <td>{p.defaultAccountCode ?? "—"}</td>
                   <td style={{ color: "var(--text-3)", maxWidth: 220 }}>{p.basis}</td>
-                  <td><span className={`badge ${p.status === "active" ? "issued" : "canceled"}`}>{p.status === "active" ? "使用中" : "已停用"}</span></td>
+                  <td><span className={`badge ${p.status === "active" ? "issued" : "canceled"}`}>{p.status === "active" ? t("使用中") : t("已停用")}</span></td>
                   <td>
                     <button className="small" onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}>
-                      {expandedId === p.id ? "收合" : "付款計畫"}
+                      {expandedId === p.id ? t("收合") : t("付款計畫")}
                     </button>{" "}
                     <button
                       className="small"
@@ -303,7 +305,7 @@ export function RecurringPayables() {
                         })
                       }
                     >
-                      {p.status === "active" ? "停用" : "啟用"}
+                      {p.status === "active" ? t("停用") : t("啟用")}
                     </button>
                   </td>
                 </tr>
@@ -312,7 +314,7 @@ export function RecurringPayables() {
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>還沒有固定支出。</p>}
+        {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{t("還沒有固定支出。")}</p>}
       </div>
     </div>
   );

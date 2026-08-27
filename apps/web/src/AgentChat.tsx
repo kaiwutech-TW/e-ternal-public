@@ -2,6 +2,7 @@ import { Sparkles, Trash2, X } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { api } from "./api.ts";
 import { AuthContext } from "./auth.ts";
+import { useT } from "./i18n.ts";
 
 interface AgentStep {
   tool: string;
@@ -26,6 +27,7 @@ const HISTORY_CAP = 60;
  */
 export function AgentChat() {
   const user = useContext(AuthContext);
+  const t = useT();
   const storageKey = `eternal-agent-chat:${user?.id ?? 0}`;
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>(() => {
@@ -86,7 +88,7 @@ export function AgentChat() {
 
   if (!open) {
     return (
-      <button className="agent-fab" onClick={() => setOpen(true)} title="E-ternal 助理" aria-label="開啟助理">
+      <button className="agent-fab" onClick={() => setOpen(true)} title={t("E-ternal 助理")} aria-label={t("開啟助理")}>
         <Sparkles size={20} />
       </button>
     );
@@ -96,17 +98,17 @@ export function AgentChat() {
     <div className="agent-panel">
       <div className="agent-head">
         <Sparkles size={15} />
-        <span style={{ flex: 1, fontWeight: 600 }}>E-ternal 助理</span>
+        <span style={{ flex: 1, fontWeight: 600 }}>{t("E-ternal 助理")}</span>
         {msgs.length > 0 && (
-          <button className="small" onClick={clearHistory} title="清除聊天記錄" aria-label="清除聊天記錄"><Trash2 size={14} /></button>
+          <button className="small" onClick={clearHistory} title={t("清除聊天記錄")} aria-label={t("清除聊天記錄")}><Trash2 size={14} /></button>
         )}
-        <button className="small" onClick={() => setOpen(false)} aria-label="關閉"><X size={14} /></button>
+        <button className="small" onClick={() => setOpen(false)} aria-label={t("關閉")}><X size={14} /></button>
       </div>
       <div className="agent-body" ref={bodyRef}>
         {msgs.length === 0 && (
           <p className="agent-empty">
-            問我資料（「這個月毛利多少」「誰的特休快用完」），或請我起草單據（報價、請假/加班/補卡申請）。
-            我只能<b>查資料</b>與<b>建草稿</b>——核准、過帳、發薪永遠由人在對應頁面確認。
+            {t("問我資料（「這個月毛利多少」「誰的特休快用完」），或請我起草單據（報價、請假/加班/補卡申請）。")}
+            {t("我只能")}<b>{t("查資料")}</b>{t("與")}<b>{t("建草稿")}</b>{t("——核准、過帳、發薪永遠由人在對應頁面確認。")}
           </p>
         )}
         {msgs.map((m, i) => (
@@ -121,7 +123,7 @@ export function AgentChat() {
             <div className="agent-bubble">{m.content}</div>
           </div>
         ))}
-        {busy && <div className="agent-msg assistant"><div className="agent-bubble agent-thinking">思考中…</div></div>}
+        {busy && <div className="agent-msg assistant"><div className="agent-bubble agent-thinking">{t("思考中…")}</div></div>}
         {error && <div className="error" style={{ marginTop: 8 }}>{error}</div>}
       </div>
       <form
@@ -134,10 +136,10 @@ export function AgentChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="問資料，或請我起草單據…"
+          placeholder={t("問資料，或請我起草單據…")}
           disabled={busy}
         />
-        <button className="primary" disabled={busy || !input.trim()}>送出</button>
+        <button className="primary" disabled={busy || !input.trim()}>{t("送出")}</button>
       </form>
     </div>
   );

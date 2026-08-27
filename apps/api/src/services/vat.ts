@@ -51,9 +51,7 @@ export async function generate401(
   if (company.vatMixedBusiness) {
     throw new AppError(
       422,
-      "公司基本檔標記為「兼營免稅／特種稅額」：兼營的營業稅申報要用 403 申報書（含不得扣抵比例計算），" +
-        "本系統目前只支援 401（專營應稅），不產出 401 以免錯用申報書類別。" +
-        "請以財政部申報軟體或洽記帳士辦理 403 申報；若貴公司實為專營應稅，請到「設定」頁取消該標記",
+      "公司基本檔標記為「兼營免稅／特種稅額」：兼營的營業稅申報要用 403 申報書（含不得扣抵比例計算），本系統目前只支援 401（專營應稅），不產出 401 以免錯用申報書類別。請以財政部申報軟體或洽記帳士辦理 403 申報；若貴公司實為專營應稅，請到「設定」頁取消該標記",
     );
   }
 
@@ -670,8 +668,8 @@ export async function fileReturn401(
   if (existing) {
     throw new AppError(
       409,
-      `期別 ${period} 已有申報紀錄（#${existing.id}）。更正申報請先刪除該期紀錄（只能刪最新一期）再重新存檔` +
-        `——刪除後其後期別的留抵承轉會跟著改變，請依期別順序重存`,
+      "期別 {period} 已有申報紀錄（#{id}）。更正申報請先刪除該期紀錄（只能刪最新一期）再重新存檔——刪除後其後期別的留抵承轉會跟著改變，請依期別順序重存",
+      { period, id: existing.id },
     );
   }
   const [later] = await db
@@ -682,8 +680,8 @@ export async function fileReturn401(
   if (later) {
     throw new AppError(
       409,
-      `已存在較晚期別（${later.period}）的申報紀錄，不可回頭補存 ${period}——較晚期別的上期留抵` +
-        `已經定案，往回插一期會讓它失去來歷。若順序真的錯了，請從最新一期開始逐期刪除後依序重存`,
+      "已存在較晚期別（{later}）的申報紀錄，不可回頭補存 {period}——較晚期別的上期留抵已經定案，往回插一期會讓它失去來歷。若順序真的錯了，請從最新一期開始逐期刪除後依序重存",
+      { later: later.period, period },
     );
   }
   const result = await generate401(db, period, opts);
@@ -711,7 +709,7 @@ export async function listReturn401Filings(db: Db) {
 /** 只能刪最新一期：中間抽掉一列會讓其後每期存檔的留抵基礎失去來歷 */
 export async function deleteReturn401Filing(db: Db, period: string) {
   const [target] = await db.select().from(schema.vatReturns).where(eq(schema.vatReturns.period, period));
-  if (!target) throw new AppError(404, `期別 ${period} 沒有申報紀錄`);
+  if (!target) throw new AppError(404, "期別 {period} 沒有申報紀錄", { period });
   const [later] = await db
     .select({ period: schema.vatReturns.period })
     .from(schema.vatReturns)
@@ -720,8 +718,8 @@ export async function deleteReturn401Filing(db: Db, period: string) {
   if (later) {
     throw new AppError(
       409,
-      `期別 ${later.period} 的申報紀錄以 ${period} 的期末留抵為基礎，不可先刪除 ${period}。` +
-        `請從最新一期開始逐期刪除`,
+      "期別 {later} 的申報紀錄以 {period} 的期末留抵為基礎，不可先刪除 {period}。請從最新一期開始逐期刪除",
+      { later: later.period, period },
     );
   }
   await db.delete(schema.vatReturns).where(eq(schema.vatReturns.period, period));

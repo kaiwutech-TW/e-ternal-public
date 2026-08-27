@@ -13,7 +13,7 @@ import { AppError, type Db } from "../db.ts";
 /** 明細分類帳：期初＋逐筆＋累計餘額 */
 export async function ledgerReport(db: Db, accountCode: string, from: string, to: string) {
   const [account] = await db.select().from(schema.accounts).where(eq(schema.accounts.code, accountCode));
-  if (!account) throw new AppError(404, `科目不存在: ${accountCode}`);
+  if (!account) throw new AppError(404, "科目不存在: {code}", { code: accountCode });
   // 借餘科目（資產/費用）借正；貸餘科目（負債/權益/收入）貸正
   const sign = account.type === "asset" || account.type === "expense" ? 1 : -1;
 
@@ -113,8 +113,7 @@ export async function cashFlow(db: Db, from: string, to: string) {
   if (cashAccounts.length === 0) {
     throw new AppError(
       500,
-      "尚未設定任何現金科目，現金流量表無法計算。請確認系統啟動時有執行科目種子（migrate 腳本），" +
-        "或到「會計科目」頁把現金/銀行科目勾選為現金科目",
+      "尚未設定任何現金科目，現金流量表無法計算。請確認系統啟動時有執行科目種子（migrate 腳本），或到「會計科目」頁把現金/銀行科目勾選為現金科目",
     );
   }
   const cashIds = new Set(cashAccounts.map((a) => a.id));

@@ -1,4 +1,28 @@
 import type { Dictionary } from "@tw-erp/core";
 
 export const ledger: Dictionary = {
+  "科目不存在: {code}": "Account not found: {code}",
+  "科目不存在: {id}": "Account not found: {id}",
+  "科目已停用，不可再過帳: {code} {name}（請改用其他科目，或先啟用它）": "Account is inactive and cannot be posted to: {code} {name} (use another account or reactivate it first)",
+  "科目已停用，不可再過帳: {code} {name}": "Account is inactive and cannot be posted to: {code} {name}",
+  "{label} 的單據日期（{docDate}）晚於{asOfLabel}（{asOf}）——不能沖銷日期在後面的單據。請把{asOfLabel}改成不早於 {docDate}，或先不指定沖銷這張單（沖不掉的部分會掛預收/預付，之後可再沖用）": "The document date of {label} ({docDate}) is later than the {asOfLabel} ({asOf}) — a document dated in the future cannot be settled. Set the {asOfLabel} to {docDate} or later, or leave this document unallocated for now (the unallocated amount is held as an advance receipt/prepayment and can be applied later)",
+  "交易對象不存在: {id}": "Contact not found: {id}",
+  "非客戶: {name}": "Not a customer: {name}",
+  "非供應商: {name}": "Not a supplier: {name}",
+  "沖銷合計 {sum} 超過收付金額 {amount}": "Allocated total {sum} exceeds the receipt/payment amount {amount}",
+  "沖銷金額須為正整數": "Allocation amount must be a positive whole number",
+  "{label} 不存在、非本對象或已沖畢": "{label} does not exist, belongs to another contact, or is already fully settled",
+  "{label} 未沖餘額 {remaining}，欲沖 {amount}": "{label} has an outstanding balance of {remaining}; attempted to allocate {amount}",
+  "{code} {name} 不是現金科目，不能當收付科目（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，收付的錢才會進現金流量表）": "{code} {name} is not a cash account and cannot be used for receipts or payments (if this is a bank account, mark it as a cash account on the Chart of Accounts page so the money flows into the cash flow statement)",
+  "應收/應付科目未初始化": "Accounts receivable / accounts payable accounts are not set up",
+  "預收/預付科目未初始化": "Advance receipt / prepayment accounts are not set up",
+  "收付款單不存在: {id}": "Receipt/payment document not found: {id}",
+  "{label} #{id} 已作廢，沒有{balanceLabel}餘額可沖用（請改用其他有餘額的單，或先收付款）": "{label} #{id} has been voided and has no {balanceLabel} balance to apply (use another document with a balance, or record a receipt/payment first)",
+  "{label} #{id} 沒有{balanceLabel}餘額——這張單建立時沒有溢{dir}": "{label} #{id} has no {balanceLabel} balance — there was no over{dir} when this document was created",
+  "沖用日 {applyDate} 早於{label}日期 {docDate}——錢還沒收付就不能拿它的餘額沖銷": "Application date {applyDate} is earlier than the {label} date {docDate} — a balance cannot be applied before the money was received or paid",
+  "至少要指定一筆要沖銷的單據": "Specify at least one document to settle",
+  "{label} #{id} 的{balanceLabel}餘額剩 {remaining}，欲沖 {sum}": "{label} #{id} has a remaining {balanceLabel} balance of {remaining}; attempted to apply {sum}",
+  "應收/應付或預收/預付科目未初始化": "Accounts receivable/payable or advance receipt/prepayment accounts are not set up",
+  "商品不存在: {id}": "Product not found: {id}",
+  "{name} 是服務項目，不入庫存，不能列入庫存開帳": "{name} is a service item, is not stocked, and cannot be included in the inventory opening balance",
 };

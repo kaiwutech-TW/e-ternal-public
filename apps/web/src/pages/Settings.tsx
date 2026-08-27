@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api.ts";
 import { useAuth } from "../auth.ts";
 import { fmt, useFetch } from "../hooks.ts";
+import { useT } from "../i18n.ts";
 import type {
   AgentSettingsRow,
   ApiKeyRow,
@@ -17,7 +18,7 @@ import type {
   UserRow,
 } from "../types.ts";
 
-/** 供應商下拉的顯示名稱。custom 是逃生門——新供應商冒出來時不必等我們改程式 */
+/** 供應商下拉的顯示名稱（中文當 i18n key，使用處 t()）。custom 是逃生門——新供應商冒出來時不必等我們改程式 */
 const AGENT_PROVIDER_LABELS: Array<[string, string]> = [
   ["anthropic", "Anthropic（Claude）"],
   ["openai", "OpenAI"],
@@ -56,6 +57,7 @@ interface OpeningLine {
 
 /** 使用者管理（admin 限定）：新增帳號、指派角色、連結員工主檔、停用/啟用、重設密碼 */
 function UsersAdmin() {
+  const t = useT();
   const me = useAuth();
   const users = useFetch<UserRow[]>("/users");
   const employees = useFetch<Employee[]>("/employees");
@@ -101,39 +103,39 @@ function UsersAdmin() {
     const linked = linkedUserOf(emp.id, excludeUserId);
     return (
       <option key={emp.id} value={emp.id} disabled={!!linked}>
-        {emp.name}{linked ? `（已連 ${linked.username}）` : ""}
+        {emp.name}{linked ? t("（已連 {username}）", { username: linked.username }) : ""}
       </option>
     );
   };
 
   return (
     <div className="card">
-      <h3>使用者管理（帳號決定登入後看得到哪些頁面）</h3>
+      <h3>{t("使用者管理（帳號決定登入後看得到哪些頁面）")}</h3>
       {error && <div className="error">{error}</div>}
       <form className="inline" onSubmit={createUser}>
-        <label className="field">帳號<input name="username" required /></label>
-        <label className="field">顯示名稱<input name="displayName" required /></label>
-        <label className="field">密碼（至少 6 碼）<input name="password" type="password" minLength={6} required /></label>
+        <label className="field">{t("帳號")}<input name="username" required /></label>
+        <label className="field">{t("顯示名稱")}<input name="displayName" required /></label>
+        <label className="field">{t("密碼（至少 6 碼）")}<input name="password" type="password" minLength={6} required /></label>
         <label className="field">
-          角色
+          {t("角色")}
           <select name="role" defaultValue="employee">
             {ROLES.map((r) => (
-              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              <option key={r} value={r}>{t(ROLE_LABELS[r])}</option>
             ))}
           </select>
         </label>
         <label className="field">
-          連結員工（報銷身分）
+          {t("連結員工（報銷身分）")}
           <select name="employeeId" defaultValue={0}>
-            <option value={0}>— 不連結 —</option>
+            <option value={0}>{t("— 不連結 —")}</option>
             {employees.data?.filter((emp) => emp.active).map((emp) => employeeOption(emp))}
           </select>
         </label>
-        <button className="primary">新增使用者</button>
+        <button className="primary">{t("新增使用者")}</button>
       </form>
       <table style={{ marginTop: 12 }}>
         <thead>
-          <tr><th>帳號</th><th>顯示名稱</th><th>角色</th><th>連結員工</th><th>狀態</th><th></th></tr>
+          <tr><th>{t("帳號")}</th><th>{t("顯示名稱")}</th><th>{t("角色")}</th><th>{t("連結員工")}</th><th>{t("狀態")}</th><th></th></tr>
         </thead>
         <tbody>
           {users.data?.map((u) => (
@@ -142,11 +144,11 @@ function UsersAdmin() {
               <td>{u.displayName}</td>
               <td>
                 {u.id === me.id ? (
-                  ROLE_LABELS[u.role]
+                  t(ROLE_LABELS[u.role])
                 ) : (
                   <select value={u.role} onChange={(e) => void act(() => api.patch(`/users/${u.id}`, { role: e.target.value as Role }))}>
                     {ROLES.map((r) => (
-                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      <option key={r} value={r}>{t(ROLE_LABELS[r])}</option>
                     ))}
                   </select>
                 )}
@@ -156,16 +158,16 @@ function UsersAdmin() {
                   value={u.employeeId ?? 0}
                   onChange={(e) => void act(() => api.patch(`/users/${u.id}`, { employeeId: Number(e.target.value) || null }))}
                 >
-                  <option value={0}>— 不連結 —</option>
+                  <option value={0}>{t("— 不連結 —")}</option>
                   {employees.data?.map((emp) => employeeOption(emp, u.id))}
                 </select>
                 {u.employeeId !== null && !employees.data?.some((emp) => emp.id === u.employeeId) && employeeName(u.employeeId)}
               </td>
-              <td><span className={`badge ${u.active ? "issued" : "canceled"}`}>{u.active ? "啟用" : "停用"}</span></td>
+              <td><span className={`badge ${u.active ? "issued" : "canceled"}`}>{u.active ? t("啟用") : t("停用")}</span></td>
               <td>
                 {u.id !== me.id && (
                   <button className="small" onClick={() => void act(() => api.patch(`/users/${u.id}`, { active: !u.active }))}>
-                    {u.active ? "停用" : "啟用"}
+                    {u.active ? t("停用") : t("啟用")}
                   </button>
                 )}{" "}
                 {resettingId === u.id ? (
@@ -173,16 +175,16 @@ function UsersAdmin() {
                     <input
                       autoFocus
                       type="password"
-                      placeholder="新密碼（至少 6 碼）"
+                      placeholder={t("新密碼（至少 6 碼）")}
                       style={{ width: 150 }}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                     />{" "}
-                    <button className="small" onClick={() => void act(() => api.patch(`/users/${u.id}`, { password: newPassword }))}>確認</button>{" "}
-                    <button className="small" onClick={() => setResettingId(null)}>取消</button>
+                    <button className="small" onClick={() => void act(() => api.patch(`/users/${u.id}`, { password: newPassword }))}>{t("確認")}</button>{" "}
+                    <button className="small" onClick={() => setResettingId(null)}>{t("取消")}</button>
                   </>
                 ) : (
-                  <button className="small" onClick={() => { setResettingId(u.id); setNewPassword(""); }}>重設密碼</button>
+                  <button className="small" onClick={() => { setResettingId(u.id); setNewPassword(""); }}>{t("重設密碼")}</button>
                 )}
               </td>
             </tr>
@@ -190,7 +192,7 @@ function UsersAdmin() {
         </tbody>
       </table>
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        停用或重設密碼會立即登出該使用者。角色能看的頁面：管理者/財務＝全部；總經理＝報表與各單據（唯讀）；業務＝主檔＋銷貨；採購＝主檔＋進貨；員工＝費用報銷。
+        {t("停用或重設密碼會立即登出該使用者。角色能看的頁面：管理者/財務＝全部；總經理＝報表與各單據（唯讀）；業務＝主檔＋銷貨；採購＝主檔＋進貨；員工＝費用報銷。")}
       </p>
     </div>
   );
@@ -203,6 +205,7 @@ function UsersAdmin() {
  * 分開放的話，設定到一半的人會以為自己做完了。
  */
 function AgentAccess() {
+  const t = useT();
   const users = useFetch<UserRow[]>("/users");
   const [keys, setKeys] = useState<ApiKeyRow[] | null>(null);
   const [settings, setSettings] = useState<AgentSettingsRow | null>(null);
@@ -256,7 +259,7 @@ function AgentAccess() {
           ...(apiKey ? { apiKey } : {}), // 空白＝不動既有金鑰（畫面永遠讀不到明文）
           enabled: f.get("enabled") === "on",
         }),
-      "已儲存",
+      t("已儲存"),
     );
   };
 
@@ -264,46 +267,43 @@ function AgentAccess() {
 
   return (
     <div className="card">
-      <h3>Agent 接入（讓 AI 助理連進這套系統）</h3>
+      <h3>{t("Agent 接入（讓 AI 助理連進這套系統）")}</h3>
       {error && <div className="error">{error}</div>}
       {ok && <div className="ok">{ok}</div>}
 
-      <h4>API 金鑰</h4>
+      <h4>{t("API 金鑰")}</h4>
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        金鑰讓機器不必用密碼登入。<strong>它的權限完全等於你指定的那個帳號</strong>——
-        請先建一個角色受限的專用帳號（例如只給「業務」）再發金鑰，不要把管理者帳號給 AI。
-        金鑰不受二階段驗證影響（機器沒有手機），但可以隨時撤銷。
+        {t("金鑰讓機器不必用密碼登入。")}<strong>{t("它的權限完全等於你指定的那個帳號")}</strong>{t("——請先建一個角色受限的專用帳號（例如只給「業務」）再發金鑰，不要把管理者帳號給 AI。金鑰不受二階段驗證影響（機器沒有手機），但可以隨時撤銷。")}
       </p>
       <form className="inline" onSubmit={createKey}>
-        <label className="field">用途說明<input name="name" required placeholder="Claude Desktop（會計助理）" /></label>
+        <label className="field">{t("用途說明")}<input name="name" required placeholder={t("Claude Desktop（會計助理）")} /></label>
         <label className="field">
-          以哪個帳號的身分
+          {t("以哪個帳號的身分")}
           <select name="userId" required defaultValue="">
-            <option value="" disabled>— 請選擇 —</option>
+            <option value="" disabled>{t("— 請選擇 —")}</option>
             {users.data?.filter((u) => u.active).map((u) => (
-              <option key={u.id} value={u.id}>{u.displayName}（{u.username}／{ROLE_LABELS[u.role]}）</option>
+              <option key={u.id} value={u.id}>{u.displayName}（{u.username}／{t(ROLE_LABELS[u.role])}）</option>
             ))}
           </select>
         </label>
-        <button className="primary">產生金鑰</button>
+        <button className="primary">{t("產生金鑰")}</button>
       </form>
 
       {newKey && (
         <div style={{ marginTop: 12 }}>
-          <div className="ok">「{newKey.name}」的金鑰已產生——請現在就複製，這串只顯示這一次。</div>
+          <div className="ok">{t("「{name}」的金鑰已產生——請現在就複製，這串只顯示這一次。", { name: newKey.name })}</div>
           <pre style={{ background: "var(--bg)", padding: 12, borderRadius: 4, fontSize: 14, overflowX: "auto" }}>
             {newKey.key}
           </pre>
           <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-            資料庫只留雜湊，沒有任何方式能再取得。設定方式見 <code>docs/mcp.md</code>：
-            環境變數 <code>TWERP_API_KEY</code>。
+            {t("資料庫只留雜湊，沒有任何方式能再取得。設定方式見 ")}<code>docs/mcp.md</code>{t("：環境變數 ")}<code>TWERP_API_KEY</code>{t("。")}
           </p>
         </div>
       )}
 
       <table style={{ marginTop: 12 }}>
         <thead>
-          <tr><th>用途</th><th>身分</th><th>前綴</th><th>最後使用</th><th>狀態</th><th></th></tr>
+          <tr><th>{t("用途")}</th><th>{t("身分")}</th><th>{t("前綴")}</th><th>{t("最後使用")}</th><th>{t("狀態")}</th><th></th></tr>
         </thead>
         <tbody>
           {keys?.map((k) => (
@@ -311,16 +311,16 @@ function AgentAccess() {
               <td>{k.name}</td>
               <td>{userName(k.userId)}</td>
               <td><code>twerp_sk_{k.prefix}…</code></td>
-              <td>{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString("zh-TW", { hour12: false }) : "從未使用"}</td>
+              <td>{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString("zh-TW", { hour12: false }) : t("從未使用")}</td>
               <td>
                 <span className={`badge ${k.revokedAt ? "canceled" : "issued"}`}>
-                  {k.revokedAt ? "已撤銷" : "有效"}
+                  {k.revokedAt ? t("已撤銷") : t("有效")}
                 </span>
               </td>
               <td>
                 {!k.revokedAt && (
-                  <button className="small" onClick={() => void act(() => api.delete(`/api-keys/${k.id}`), "金鑰已撤銷")}>
-                    撤銷
+                  <button className="small" onClick={() => void act(() => api.delete(`/api-keys/${k.id}`), t("金鑰已撤銷"))}>
+                    {t("撤銷")}
                   </button>
                 )}
               </td>
@@ -328,41 +328,37 @@ function AgentAccess() {
           ))}
         </tbody>
       </table>
-      {keys?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>尚未產生任何金鑰。</p>}
+      {keys?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{t("尚未產生任何金鑰。")}</p>}
 
-      <h4 style={{ marginTop: 20 }}>LLM 供應商</h4>
+      <h4 style={{ marginTop: 20 }}>{t("LLM 供應商")}</h4>
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        <strong>這套系統本身不會呼叫 LLM。</strong>這裡只是讓金鑰有一個統一的保管位置，
-        給跑在旁邊的 agent 取用——不然金鑰會散落在每個人自己的環境變數裡，
-        沒有人知道公司總共有幾把、誰還留著。系統不會替你驗證金鑰能不能用，
-        也不預設型號（寫死的型號會過期，而過期的預設值比空白更難發現）。
+        <strong>{t("這套系統本身不會呼叫 LLM。")}</strong>{t("這裡只是讓金鑰有一個統一的保管位置，給跑在旁邊的 agent 取用——不然金鑰會散落在每個人自己的環境變數裡，沒有人知道公司總共有幾把、誰還留著。系統不會替你驗證金鑰能不能用，也不預設型號（寫死的型號會過期，而過期的預設值比空白更難發現）。")}
       </p>
       {settings && (
         <form className="inline" onSubmit={saveSettings}>
           <label className="field">
-            供應商
+            {t("供應商")}
             <select name="provider" defaultValue={settings.provider}>
               {AGENT_PROVIDER_LABELS.map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
+                <option key={v} value={v}>{t(label)}</option>
               ))}
             </select>
           </label>
-          <label className="field">模型名稱<input name="model" defaultValue={settings.model} placeholder="向供應商查詢目前可用的型號" /></label>
-          <label className="field">端點網址（自架或代理才要填）<input name="baseUrl" defaultValue={settings.baseUrl ?? ""} placeholder="https://…" /></label>
+          <label className="field">{t("模型名稱")}<input name="model" defaultValue={settings.model} placeholder={t("向供應商查詢目前可用的型號")} /></label>
+          <label className="field">{t("端點網址（自架或代理才要填）")}<input name="baseUrl" defaultValue={settings.baseUrl ?? ""} placeholder="https://…" /></label>
           <label className="field">
-            API 金鑰{settings.hasApiKey ? `（目前：…${settings.apiKeyHint ?? "????"}，留空不變更）` : ""}
-            <input name="apiKey" type="password" placeholder={settings.hasApiKey ? "留空＝不變更" : "貼上供應商的金鑰"} />
+            {t("API 金鑰")}{settings.hasApiKey ? t("（目前：…{hint}，留空不變更）", { hint: settings.apiKeyHint ?? "????" }) : ""}
+            <input name="apiKey" type="password" placeholder={settings.hasApiKey ? t("留空＝不變更") : t("貼上供應商的金鑰")} />
           </label>
           <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <input type="checkbox" name="enabled" defaultChecked={settings.enabled} />
-            啟用
+            {t("啟用")}
           </label>
-          <button className="primary">儲存</button>
+          <button className="primary">{t("儲存")}</button>
         </form>
       )}
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        agent 的身分與底線寫在 <code>agent/soul.md</code>，能力清單在 <code>agent/skill.md</code>——
-        接 agent 之前請先讀那兩份，特別是「絕不斷言稅率與申報期限」那一條。
+        {t("agent 的身分與底線寫在 ")}<code>agent/soul.md</code>{t("，能力清單在 ")}<code>agent/skill.md</code>{t("——接 agent 之前請先讀那兩份，特別是「絕不斷言稅率與申報期限」那一條。")}
       </p>
       <AgentMemories />
     </div>
@@ -389,6 +385,7 @@ interface MemoryRow {
  * 每一條全員 agent 共用（注入每個人的對話索引），所以管理權限＝admin。
  */
 function AgentMemories() {
+  const t = useT();
   const [rows, setRows] = useState<MemoryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -417,16 +414,16 @@ function AgentMemories() {
   return (
     <div style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
       <h4 style={{ margin: "0 0 10px" }}>
-        助理記憶（公司知識）
-        {proposed.length > 0 && <span className="badge draft" style={{ marginLeft: 8 }}>{proposed.length} 條待核准</span>}
-        {active.some((r) => r.expired) && <span className="badge canceled" style={{ marginLeft: 6 }}>{active.filter((r) => r.expired).length} 條已過期待覆核</span>}
+        {t("助理記憶（公司知識）")}
+        {proposed.length > 0 && <span className="badge draft" style={{ marginLeft: 8 }}>{t("{n} 條待核准", { n: proposed.length })}</span>}
+        {active.some((r) => r.expired) && <span className="badge canceled" style={{ marginLeft: 6 }}>{t("{n} 條已過期待覆核", { n: active.filter((r) => r.expired).length })}</span>}
       </h4>
       {error && <div className="error">{error}</div>}
       {ok && <div className="ok">{ok}</div>}
 
       {proposed.length > 0 && (
         <table style={{ marginBottom: 12 }}>
-          <thead><tr><th>待核准</th><th>摘要</th><th>提議人</th><th></th></tr></thead>
+          <thead><tr><th>{t("待核准")}</th><th>{t("摘要")}</th><th>{t("提議人")}</th><th></th></tr></thead>
           <tbody>
             {proposed.map((m) => (
               <tr key={m.id}>
@@ -435,10 +432,10 @@ function AgentMemories() {
                   {m.title}
                   <div style={{ fontSize: "0.78125rem", color: "var(--text-3)", whiteSpace: "pre-wrap" }}>{m.body.slice(0, 200)}</div>
                 </td>
-                <td style={{ color: "var(--text-2)" }}>{m.source === "agent" ? "助理提議" : ""}{m.proposedByName ? `（${m.proposedByName} 的對話）` : ""}</td>
+                <td style={{ color: "var(--text-2)" }}>{m.source === "agent" ? t("助理提議") : ""}{m.proposedByName ? t("（{name} 的對話）", { name: m.proposedByName }) : ""}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="small primary" onClick={() => void act(() => api.post(`/agent-memories/${m.id}/approve`, {}), "已核准——之後的對話開始生效")}>核准</button>{" "}
-                  <button className="small" onClick={() => void act(() => api.delete(`/agent-memories/${m.id}`))}>刪除</button>
+                  <button className="small primary" onClick={() => void act(() => api.post(`/agent-memories/${m.id}/approve`, {}), t("已核准——之後的對話開始生效"))}>{t("核准")}</button>{" "}
+                  <button className="small" onClick={() => void act(() => api.delete(`/agent-memories/${m.id}`))}>{t("刪除")}</button>
                 </td>
               </tr>
             ))}
@@ -462,30 +459,30 @@ function AgentMemories() {
               ...(stale ? { staleAfter: stale } : {}),
             });
             form.reset();
-          }, "記憶已新增（立即生效）");
+          }, t("記憶已新增（立即生效）"));
         }}
       >
-        <label className="field">代號（kebab-case）<input name="name" required pattern="[a-z0-9][a-z0-9-]+" placeholder="saturday-is-restday" /></label>
-        <label className="field" style={{ minWidth: 220 }}>一行摘要（索引只顯示它）<input name="title" required /></label>
-        <label className="field" style={{ minWidth: 260 }}>內容<textarea name="body" required rows={2} /></label>
-        <label className="field">標籤（逗號分隔）<input name="tags" /></label>
-        <label className="field">到期日（會過期才填）<input name="staleAfter" type="date" /></label>
-        <button className="primary">新增記憶</button>
+        <label className="field">{t("代號（kebab-case）")}<input name="name" required pattern="[a-z0-9][a-z0-9-]+" placeholder="saturday-is-restday" /></label>
+        <label className="field" style={{ minWidth: 220 }}>{t("一行摘要（索引只顯示它）")}<input name="title" required /></label>
+        <label className="field" style={{ minWidth: 260 }}>{t("內容")}<textarea name="body" required rows={2} /></label>
+        <label className="field">{t("標籤（逗號分隔）")}<input name="tags" /></label>
+        <label className="field">{t("到期日（會過期才填）")}<input name="staleAfter" type="date" /></label>
+        <button className="primary">{t("新增記憶")}</button>
       </form>
 
       {active.length > 0 && (
         <table style={{ marginTop: 12 }}>
-          <thead><tr><th>記憶</th><th>摘要</th><th>到期</th><th>核准人</th><th></th></tr></thead>
+          <thead><tr><th>{t("記憶")}</th><th>{t("摘要")}</th><th>{t("到期")}</th><th>{t("核准人")}</th><th></th></tr></thead>
           <tbody>
             {active.map((m) => (
               <tr key={m.id} style={m.expired ? { opacity: 0.6 } : undefined}>
                 <td><code>{m.name}</code></td>
-                <td>{m.title}{m.expired && <span className="badge canceled" style={{ marginLeft: 6 }}>已過期</span>}</td>
+                <td>{m.title}{m.expired && <span className="badge canceled" style={{ marginLeft: 6 }}>{t("已過期")}</span>}</td>
                 <td>{m.staleAfter ?? "—"}</td>
                 <td style={{ color: "var(--text-2)" }}>{m.approvedByName ?? "—"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="small" onClick={() => setEditing(m)}>編輯</button>{" "}
-                  <button className="small" onClick={() => void act(() => api.post(`/agent-memories/${m.id}/archive`, {}), "已封存（不再注入對話）")}>封存</button>
+                  <button className="small" onClick={() => setEditing(m)}>{t("編輯")}</button>{" "}
+                  <button className="small" onClick={() => void act(() => api.post(`/agent-memories/${m.id}/archive`, {}), t("已封存（不再注入對話）"))}>{t("封存")}</button>
                 </td>
               </tr>
             ))}
@@ -509,23 +506,23 @@ function AgentMemories() {
                 staleAfter: stale || null,
               });
               setEditing(null);
-            }, "記憶已更新");
+            }, t("記憶已更新"));
           }}
         >
-          <span style={{ alignSelf: "center", fontWeight: 600 }}>編輯 <code>{editing.name}</code></span>
-          <label className="field" style={{ minWidth: 220 }}>摘要<input name="title" defaultValue={editing.title} required /></label>
-          <label className="field" style={{ minWidth: 280 }}>內容<textarea name="body" defaultValue={editing.body} required rows={3} /></label>
-          <label className="field">標籤<input name="tags" defaultValue={editing.tags} /></label>
-          <label className="field">到期日<input name="staleAfter" type="date" defaultValue={editing.staleAfter ?? ""} /></label>
-          <button className="primary">儲存</button>
-          <button type="button" className="small" onClick={() => setEditing(null)}>取消</button>
+          <span style={{ alignSelf: "center", fontWeight: 600 }}>{t("編輯")} <code>{editing.name}</code></span>
+          <label className="field" style={{ minWidth: 220 }}>{t("摘要")}<input name="title" defaultValue={editing.title} required /></label>
+          <label className="field" style={{ minWidth: 280 }}>{t("內容")}<textarea name="body" defaultValue={editing.body} required rows={3} /></label>
+          <label className="field">{t("標籤")}<input name="tags" defaultValue={editing.tags} /></label>
+          <label className="field">{t("到期日")}<input name="staleAfter" type="date" defaultValue={editing.staleAfter ?? ""} /></label>
+          <button className="primary">{t("儲存")}</button>
+          <button type="button" className="small" onClick={() => setEditing(null)}>{t("取消")}</button>
         </form>
       )}
 
       {archived.length > 0 && (
         <p style={{ fontSize: 13, marginTop: 10 }}>
           <button className="small" onClick={() => setShowArchived(!showArchived)}>
-            {showArchived ? "收起" : `已封存 ${archived.length} 條`}
+            {showArchived ? t("收起") : t("已封存 {n} 條", { n: archived.length })}
           </button>
         </p>
       )}
@@ -534,8 +531,7 @@ function AgentMemories() {
       ))}
 
       <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 10 }}>
-        記憶會注入**每一位**同事的助理對話（索引＋按需讀取）。助理在對話中被教到公司事實時會「提議」新記憶，
-        在這裡核准才生效——助理起草、人定稿，跟單據的紅線同一條。到期的記憶自動退出索引，請覆核後改到期日或封存。
+        {t("記憶會注入**每一位**同事的助理對話（索引＋按需讀取）。助理在對話中被教到公司事實時會「提議」新記憶，在這裡核准才生效——助理起草、人定稿，跟單據的紅線同一條。到期的記憶自動退出索引，請覆核後改到期日或封存。")}
       </p>
     </div>
   );
@@ -548,6 +544,7 @@ function AgentMemories() {
  * 掃描失敗而自己沒發現的人，會在下一次登入時直接進不來。
  */
 function TotpSelfService() {
+  const t = useT();
   const me = useAuth();
   const [status, setStatus] = useState<TotpStatus | null>(null);
   const [setup, setSetup] = useState<{ secret: string; uri: string } | null>(null);
@@ -599,15 +596,15 @@ function TotpSelfService() {
 
   return (
     <div className="card">
-      <h3>二階段驗證（登入時除了密碼，再要一組手機上的驗證碼）</h3>
+      <h3>{t("二階段驗證（登入時除了密碼，再要一組手機上的驗證碼）")}</h3>
       {error && <div className="error">{error}</div>}
 
       {status?.enabled ? (
         <>
           <p>
-            <span className="badge issued">已啟用</span>{" "}
-            備援碼還剩 <strong>{status.recoveryCodesLeft}</strong> 組
-            {status.recoveryCodesLeft <= 2 && "（快用完了，建議重新設定以取得新的一組）"}
+            <span className="badge issued">{t("已啟用")}</span>{" "}
+            {t("備援碼還剩 ")}<strong>{status.recoveryCodesLeft}</strong>{t(" 組")}
+            {status.recoveryCodesLeft <= 2 && t("（快用完了，建議重新設定以取得新的一組）")}
           </p>
           {disabling || resetting ? (
             <form
@@ -619,23 +616,23 @@ function TotpSelfService() {
               }}
             >
               <label className="field">
-                請再輸入一次密碼以確認{disabling ? "關閉" : "重新設定"}
+                {disabling ? t("請再輸入一次密碼以確認關閉") : t("請再輸入一次密碼以確認重新設定")}
                 <input name="password" type="password" autoFocus required autoComplete="current-password" />
               </label>
-              <button className="primary">確認{disabling ? "關閉" : "重新設定"}</button>{" "}
+              <button className="primary">{disabling ? t("確認關閉") : t("確認重新設定")}</button>{" "}
               <button type="button" className="small" onClick={() => { setDisabling(false); setResetting(false); }}>
-                取消
+                {t("取消")}
               </button>
             </form>
           ) : (
             <>
-              <button className="small" onClick={() => setResetting(true)}>重新設定（換手機時用）</button>{" "}
-              <button className="small" onClick={() => setDisabling(true)}>關閉</button>
+              <button className="small" onClick={() => setResetting(true)}>{t("重新設定（換手機時用）")}</button>{" "}
+              <button className="small" onClick={() => setDisabling(true)}>{t("關閉")}</button>
             </>
           )}
           {resetting && (
             <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-              新的密鑰要等你用新手機驗證通過才會生效——中途放棄的話，現在這支手機照樣能用。
+              {t("新的密鑰要等你用新手機驗證通過才會生效——中途放棄的話，現在這支手機照樣能用。")}
             </p>
           )}
         </>
@@ -643,10 +640,9 @@ function TotpSelfService() {
         !setup && (
           <>
             <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-              尚未啟用。密碼一旦外洩（在別的網站用了同一組、手機被裝了側錄），別人第一次登入就會成功；
-              第二因子是唯一能把「知道密碼」和「就是本人」分開的東西。系統對外提供服務時建議至少替管理者帳號啟用。
+              {t("尚未啟用。密碼一旦外洩（在別的網站用了同一組、手機被裝了側錄），別人第一次登入就會成功；第二因子是唯一能把「知道密碼」和「就是本人」分開的東西。系統對外提供服務時建議至少替管理者帳號啟用。")}
             </p>
-            <button className="primary" onClick={() => void begin()}>開始設定</button>
+            <button className="primary" onClick={() => void begin()}>{t("開始設定")}</button>
           </>
         )
       )}
@@ -654,30 +650,27 @@ function TotpSelfService() {
       {setup && (
         <div style={{ marginTop: 12 }}>
           <p>
-            在手機的驗證器 app（Google Authenticator、1Password、Microsoft Authenticator 皆可）
-            選「手動輸入」，帳號填 <code>{me.username}</code>，密鑰填：
+            {t("在手機的驗證器 app（Google Authenticator、1Password、Microsoft Authenticator 皆可）選「手動輸入」，帳號填 ")}<code>{me.username}</code>{t("，密鑰填：")}
           </p>
           <p><code style={{ fontSize: 16, letterSpacing: 1 }}>{setup.secret}</code></p>
           <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-            手機上開這個系統的話，也可以直接點<a href={setup.uri}>這個連結</a>讓 app 自己帶入。
+            {t("手機上開這個系統的話，也可以直接點")}<a href={setup.uri}>{t("這個連結")}</a>{t("讓 app 自己帶入。")}
           </p>
           <form className="inline" onSubmit={confirm}>
             <label className="field">
-              app 上目前顯示的 6 位數
+              {t("app 上目前顯示的 6 位數")}
               <input name="code" autoFocus required inputMode="numeric" maxLength={6} />
             </label>
-            <button className="primary">驗證並啟用</button>
+            <button className="primary">{t("驗證並啟用")}</button>
           </form>
         </div>
       )}
 
       {codes && (
         <div style={{ marginTop: 12 }}>
-          <div className="ok">已啟用。以下是備援碼——請現在就抄下來或列印。</div>
+          <div className="ok">{t("已啟用。以下是備援碼——請現在就抄下來或列印。")}</div>
           <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-            <strong>這些碼只會顯示這一次</strong>（資料庫只留雜湊，沒有任何方式能再取得）。
-            手機掉了、換手機、app 被誤刪時，用其中一組代替驗證碼登入，一組用過就失效。
-            請放在手機以外的地方——存在同一支手機裡等於沒有備援。
+            <strong>{t("這些碼只會顯示這一次")}</strong>{t("（資料庫只留雜湊，沒有任何方式能再取得）。手機掉了、換手機、app 被誤刪時，用其中一組代替驗證碼登入，一組用過就失效。請放在手機以外的地方——存在同一支手機裡等於沒有備援。")}
           </p>
           <pre style={{ background: "var(--bg)", padding: 12, borderRadius: 4, fontSize: 15 }}>
             {codes.join("\n")}
@@ -697,6 +690,7 @@ function TotpSelfService() {
  * 那比顯示原始路徑危險得多。原始路徑至少永遠是真的。
  */
 function AuditLog() {
+  const t = useT();
   const [filter, setFilter] = useState({ path: "", username: "", failedOnly: false });
   const [rows, setRows] = useState<AuditRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -724,37 +718,37 @@ function AuditLog() {
 
   return (
     <div className="card">
-      <h3>操作日誌（誰動了什麼；只增不刪）</h3>
+      <h3>{t("操作日誌（誰動了什麼；只增不刪）")}</h3>
       {error && <div className="error">{error}</div>}
       <form className="inline" onSubmit={(e) => { e.preventDefault(); void load(); }}>
         <label className="field">
-          使用者
+          {t("使用者")}
           <select value={filter.username} onChange={(e) => setFilter((f) => ({ ...f, username: e.target.value }))}>
-            <option value="">— 全部 —</option>
+            <option value="">{t("— 全部 —")}</option>
             {users.data?.map((u) => (
               <option key={u.id} value={u.username}>{u.displayName}（{u.username}）</option>
             ))}
           </select>
         </label>
         <label className="field">
-          路徑前綴（如 /sales）
+          {t("路徑前綴（如 /sales）")}
           <input value={filter.path} onChange={(e) => setFilter((f) => ({ ...f, path: e.target.value }))} placeholder="/" />
         </label>
         <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <input type="checkbox" checked={filter.failedOnly} onChange={(e) => setFilter((f) => ({ ...f, failedOnly: e.target.checked }))} />
-          只看被擋下的
+          {t("只看被擋下的")}
         </label>
-        <button className="primary">查詢</button>
+        <button className="primary">{t("查詢")}</button>
       </form>
       <table style={{ marginTop: 12 }}>
         <thead>
-          <tr><th>時間</th><th>使用者</th><th>動作</th><th>結果</th><th>來源</th></tr>
+          <tr><th>{t("時間")}</th><th>{t("使用者")}</th><th>{t("動作")}</th><th>{t("結果")}</th><th>{t("來源")}</th></tr>
         </thead>
         <tbody>
           {rows?.map((r) => (
             <tr key={r.id}>
               <td style={{ whiteSpace: "nowrap" }}>{new Date(r.at).toLocaleString("zh-TW", { hour12: false })}</td>
-              <td>{r.username || "—"}{r.role ? `（${ROLE_LABELS[r.role]}）` : ""}</td>
+              <td>{r.username || "—"}{r.role ? `（${t(ROLE_LABELS[r.role])}）` : ""}</td>
               <td><code>{r.method} {r.path}</code>{r.targetId ? ` → #${r.targetId}` : ""}</td>
               <td><span className={`badge ${r.status < 400 ? "issued" : "canceled"}`}>{r.status}</span></td>
               <td style={{ color: "var(--text-2)" }}>{r.source || "—"}</td>
@@ -762,11 +756,9 @@ function AuditLog() {
           ))}
         </tbody>
       </table>
-      {rows?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>沒有符合條件的紀錄。</p>}
+      {rows?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{t("沒有符合條件的紀錄。")}</p>}
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        記錄所有會改變資料的操作（含被權限擋下、密碼錯誤、驗證失敗的嘗試），以及身分證號的單筆查詢；
-        一般的瀏覽查詢不記錄。<strong>不記錄請求內容</strong>——所以查得到「誰改了某張單」，
-        查不到「值從什麼變成什麼」。最多顯示最近 200 筆。
+        {t("記錄所有會改變資料的操作（含被權限擋下、密碼錯誤、驗證失敗的嘗試），以及身分證號的單筆查詢；一般的瀏覽查詢不記錄。")}<strong>{t("不記錄請求內容")}</strong>{t("——所以查得到「誰改了某張單」，查不到「值從什麼變成什麼」。最多顯示最近 200 筆。")}
       </p>
     </div>
   );
@@ -778,6 +770,7 @@ function AuditLog() {
  * 所以期初手工傳票不得再含應收付科目，卡片下方的提醒就是在講這件事。
  */
 function OpeningBalances() {
+  const t = useT();
   const partners = useFetch<Partner[]>("/partners");
   const rows = useFetch<OpeningBalanceRow[]>("/opening-balances");
   const [kind, setKind] = useState<"receivable" | "payable">("receivable");
@@ -803,7 +796,7 @@ function OpeningBalances() {
         ...(val("memo") ? { memo: val("memo") } : {}),
       });
       setError(null);
-      setOk("期初單已建立並拋轉傳票；請確認期初手工傳票裡沒有再入一次應收／應付科目");
+      setOk(t("期初單已建立並拋轉傳票；請確認期初手工傳票裡沒有再入一次應收／應付科目"));
       form.reset();
       rows.reload();
     } catch (err) {
@@ -820,8 +813,10 @@ function OpeningBalances() {
   /** 作廢期初單（0030）：理由必填；反向傳票沖開帳分錄，已被收款沖銷的伺服端會 409 指路 */
   const voidRow = async (r: OpeningBalanceRow) => {
     const reason = window.prompt(
-      `作廢期初${r.kind === "receivable" ? "應收" : "應付"}單 #${r.id}（${r.partnerName}，${fmt(r.amount)} 元）：` +
-        "請輸入作廢理由。\n傳票以反向分錄沖平；已被收付款單沖銷的要先作廢那張收付款單。",
+      (r.kind === "receivable"
+        ? t("作廢期初應收單 #{id}（{name}，{amount} 元）：請輸入作廢理由。", { id: r.id, name: r.partnerName, amount: fmt(r.amount) })
+        : t("作廢期初應付單 #{id}（{name}，{amount} 元）：請輸入作廢理由。", { id: r.id, name: r.partnerName, amount: fmt(r.amount) })) +
+        "\n" + t("傳票以反向分錄沖平；已被收付款單沖銷的要先作廢那張收付款單。"),
     );
     if (reason === null) return;
     try {
@@ -837,50 +832,50 @@ function OpeningBalances() {
 
   return (
     <div className="card">
-      <h3>期初應收／應付（既有公司導入：建立舊欠款的客戶／供應商明細）</h3>
+      <h3>{t("期初應收／應付（既有公司導入：建立舊欠款的客戶／供應商明細）")}</h3>
       {error && <div className="error">{error}</div>}
       {ok && <div className="ok">{ok}</div>}
       <form className="inline" onSubmit={submit}>
         <label className="field">
-          類別
+          {t("類別")}
           <select value={kind} onChange={(e) => setKind(e.target.value as "receivable" | "payable")}>
-            <option value="receivable">期初應收（客戶欠我）</option>
-            <option value="payable">期初應付（我欠供應商）</option>
+            <option value="receivable">{t("期初應收（客戶欠我）")}</option>
+            <option value="payable">{t("期初應付（我欠供應商）")}</option>
           </select>
         </label>
         <label className="field">
-          {kind === "receivable" ? "客戶" : "供應商"}
+          {kind === "receivable" ? t("客戶") : t("供應商")}
           <select name="partnerId" required defaultValue="">
-            <option value="" disabled>— 請選擇 —</option>
+            <option value="" disabled>{t("— 請選擇 —")}</option>
             {eligible.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </label>
-        <label className="field">開帳日（傳票日期）<input name="entryDate" type="date" required /></label>
-        <label className="field">原單日期（帳齡起算）<input name="docDate" type="date" required /></label>
-        <label className="field">到期日（未約定可不填）<input name="dueDate" type="date" /></label>
-        <label className="field">未收/未付金額<input name="amount" type="number" min={1} required /></label>
-        <label className="field">摘要（原單號等）<input name="memo" /></label>
-        <button className="primary">建立期初單</button>
+        <label className="field">{t("開帳日（傳票日期）")}<input name="entryDate" type="date" required /></label>
+        <label className="field">{t("原單日期（帳齡起算）")}<input name="docDate" type="date" required /></label>
+        <label className="field">{t("到期日（未約定可不填）")}<input name="dueDate" type="date" /></label>
+        <label className="field">{t("未收/未付金額")}<input name="amount" type="number" min={1} required /></label>
+        <label className="field">{t("摘要（原單號等）")}<input name="memo" /></label>
+        <button className="primary">{t("建立期初單")}</button>
       </form>
       {rows.data && rows.data.length > 0 && (
         <table style={{ marginTop: 12 }}>
           <thead>
             <tr>
-              <th>類別</th><th>對象</th><th>開帳日</th><th>原單日期</th><th>到期日</th>
-              <th className="num">金額</th><th className="num">已沖</th><th className="num">未沖</th><th>摘要</th><th></th>
+              <th>{t("類別")}</th><th>{t("對象")}</th><th>{t("開帳日")}</th><th>{t("原單日期")}</th><th>{t("到期日")}</th>
+              <th className="num">{t("金額")}</th><th className="num">{t("已沖")}</th><th className="num">{t("未沖")}</th><th>{t("摘要")}</th><th></th>
             </tr>
           </thead>
           <tbody>
             {rows.data.map((r) => (
               <tr key={r.id}>
                 <td>
-                  {r.kind === "receivable" ? "應收" : "應付"}
+                  {r.kind === "receivable" ? t("應收") : t("應付")}
                   {r.voidedAt && (
                     <>
                       {" "}
-                      <span className="badge canceled" title={`作廢理由：${r.voidReason ?? "未記錄"}`}>已作廢</span>
+                      <span className="badge canceled" title={t("作廢理由：{reason}", { reason: r.voidReason ?? t("未記錄") })}>{t("已作廢")}</span>
                     </>
                   )}
                 </td>
@@ -895,7 +890,7 @@ function OpeningBalances() {
                 <td>
                   {/* 作廢（0030）：已作廢的不再顯示（伺服端同樣會 409） */}
                   {!r.voidedAt && (
-                    <button className="small" type="button" onClick={() => void voidRow(r)}>作廢</button>
+                    <button className="small" type="button" onClick={() => void voidRow(r)}>{t("作廢")}</button>
                   )}
                 </td>
               </tr>
@@ -903,7 +898,7 @@ function OpeningBalances() {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5}>合計：應收 {fmt(totalOf("receivable"))}／應付 {fmt(totalOf("payable"))}（不含已作廢）</td>
+              <td colSpan={5}>{t("合計：應收 {receivable}／應付 {payable}（不含已作廢）", { receivable: fmt(totalOf("receivable")), payable: fmt(totalOf("payable")) })}</td>
               <td className="num">{fmt(alive.reduce((s, r) => s + r.amount, 0))}</td>
               <td className="num" />
               <td className="num">{fmt(alive.reduce((s, r) => s + r.remaining, 0))}</td>
@@ -913,15 +908,14 @@ function OpeningBalances() {
         </table>
       )}
       <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-        每一筆未收未付的舊單各建一筆（帳齡與收付款沖銷都以單據為單位）。建立時<strong>系統自動拋轉傳票</strong>
-        （應收：借應收帳款、貸累積盈虧；應付相反），所以期初手工傳票<strong>不要再包含應收帳款與應付帳款</strong>，
-        否則會重複入帳。這些期初單不會進 401 申報——期初欠款不是當期銷項進項。
+        {t("每一筆未收未付的舊單各建一筆（帳齡與收付款沖銷都以單據為單位）。建立時")}<strong>{t("系統自動拋轉傳票")}</strong>{t("（應收：借應收帳款、貸累積盈虧；應付相反），所以期初手工傳票")}<strong>{t("不要再包含應收帳款與應付帳款")}</strong>{t("，否則會重複入帳。這些期初單不會進 401 申報——期初欠款不是當期銷項進項。")}
       </p>
     </div>
   );
 }
 
 export function Settings() {
+  const t = useT();
   const me = useAuth();
   const tracks = useFetch<Track[]>("/invoice-tracks");
   const products = useFetch<Product[]>("/products");
@@ -943,16 +937,14 @@ export function Settings() {
   const submitOpening = async () => {
     try {
       const valid = openingLines.filter((l) => l.productId && l.qty > 0);
-      if (!valid.length) throw new Error("至少一筆有效開帳明細");
+      if (!valid.length) throw new Error(t("至少一筆有效開帳明細"));
       const res = await api.post<{ lines: number; totalAmount: number }>("/inventory/opening", {
         docDate: openingDate,
         lines: valid,
       });
       setError(null);
       setOk(
-        `庫存開帳完成（${res.lines} 筆，合計 ${fmt(res.totalAmount)} 元）。` +
-          `記得到「傳票」頁以手工傳票開帳，存貨科目（1301 商品存貨）請借記這個合計金額——` +
-          `不補的話資產負債表會一直少這批存貨，而且借貸照樣平衡、不會有紅字`,
+        t("庫存開帳完成（{n} 筆，合計 {amount} 元）。記得到「傳票」頁以手工傳票開帳，存貨科目（1301 商品存貨）請借記這個合計金額——不補的話資產負債表會一直少這批存貨，而且借貸照樣平衡、不會有紅字", { n: res.lines, amount: fmt(res.totalAmount) }),
       );
       setOpeningLines([{ productId: 0, qty: 0, unitCost: 0 }]);
     } catch (err) {
@@ -992,7 +984,7 @@ export function Settings() {
       });
       setCompany(saved);
       setError(null);
-      setOk("公司基本檔已儲存");
+      setOk(t("公司基本檔已儲存"));
     } catch (err) {
       setOk(null);
       setError((err as Error).message);
@@ -1038,16 +1030,16 @@ export function Settings() {
       {me.role === "admin" && <AuditLog />}
 
       <div className="card">
-        <h3>公司基本檔（發票賣方資訊＋申報稅籍＋401 申報人）</h3>
+        <h3>{t("公司基本檔（發票賣方資訊＋申報稅籍＋401 申報人）")}</h3>
         <form className="inline" onSubmit={saveCompany}>
-          <label className="field">公司名稱<input name="name" defaultValue={company?.name ?? ""} required /></label>
-          <label className="field">統一編號<input name="taxId" defaultValue={company?.taxId ?? ""} maxLength={8} required /></label>
-          <label className="field">地址<input name="address" defaultValue={company?.address ?? ""} /></label>
-          <label className="field">負責人姓名<input name="personInCharge" defaultValue={company?.personInCharge ?? ""} /></label>
-          <label className="field">公司電話<input name="telephone" defaultValue={company?.telephone ?? ""} /></label>
+          <label className="field">{t("公司名稱")}<input name="name" defaultValue={company?.name ?? ""} required /></label>
+          <label className="field">{t("統一編號")}<input name="taxId" defaultValue={company?.taxId ?? ""} maxLength={8} required /></label>
+          <label className="field">{t("地址")}<input name="address" defaultValue={company?.address ?? ""} /></label>
+          <label className="field">{t("負責人姓名")}<input name="personInCharge" defaultValue={company?.personInCharge ?? ""} /></label>
+          <label className="field">{t("公司電話")}<input name="telephone" defaultValue={company?.telephone ?? ""} /></label>
           <label className="field">Email<input name="email" defaultValue={company?.email ?? ""} /></label>
-          <label className="field">稅籍編號（9 碼）<input name="taxRegistrationNo" defaultValue={company?.taxRegistrationNo ?? ""} maxLength={9} /></label>
-          <label className="field">縣市別代號（1 碼）<input name="cityCode" defaultValue={company?.cityCode ?? ""} maxLength={1} /></label>
+          <label className="field">{t("稅籍編號（9 碼）")}<input name="taxRegistrationNo" defaultValue={company?.taxRegistrationNo ?? ""} maxLength={9} /></label>
+          <label className="field">{t("縣市別代號（1 碼）")}<input name="cityCode" defaultValue={company?.cityCode ?? ""} maxLength={1} /></label>
           <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             {/* 兼營標記（0028，B12）：勾了之後 401 直接拒產並指路——比一份看起來正常、實則錯類別的申報書誠實 */}
             <input
@@ -1056,71 +1048,71 @@ export function Settings() {
               name="vatMixedBusiness"
               defaultChecked={company?.vatMixedBusiness ?? false}
             />
-            兼營免稅／特種稅額（勾選後本系統不產 401——兼營要用 403 申報，本系統未支援，請以官方軟體或洽記帳士辦理）
+            {t("兼營免稅／特種稅額（勾選後本系統不產 401——兼營要用 403 申報，本系統未支援，請以官方軟體或洽記帳士辦理）")}
           </label>
           <fieldset style={{ border: "1px solid var(--line)", borderRadius: 6, padding: "8px 12px", margin: "8px 0", width: "100%" }}>
             <legend style={{ fontSize: 13, color: "var(--text-2)" }}>
-              401 申報人（申報書第 99-103 欄；委託記帳士申報時另填登錄字號）
+              {t("401 申報人（申報書第 99-103 欄；委託記帳士申報時另填登錄字號）")}
             </legend>
-            <label className="field">申報人姓名<input name="filerName" defaultValue={company?.filerName ?? ""} maxLength={12} /></label>
+            <label className="field">{t("申報人姓名")}<input name="filerName" defaultValue={company?.filerName ?? ""} maxLength={12} /></label>
             <label className="field">
-              申報人身分證號
+              {t("申報人身分證號")}
               <input
                 name="filerIdNo"
                 maxLength={10}
-                placeholder={company?.hasFilerIdNo ? "已設定（留空表示不變）" : ""}
+                placeholder={company?.hasFilerIdNo ? t("已設定（留空表示不變）") : ""}
                 autoComplete="off"
               />
             </label>
-            <label className="field">電話區碼<input name="filerAreaCode" defaultValue={company?.filerAreaCode ?? ""} maxLength={4} style={{ width: 70 }} /></label>
-            <label className="field">電話<input name="filerPhone" defaultValue={company?.filerPhone ?? ""} maxLength={11} /></label>
-            <label className="field">分機<input name="filerExt" defaultValue={company?.filerExt ?? ""} maxLength={5} style={{ width: 70 }} /></label>
+            <label className="field">{t("電話區碼")}<input name="filerAreaCode" defaultValue={company?.filerAreaCode ?? ""} maxLength={4} style={{ width: 70 }} /></label>
+            <label className="field">{t("電話")}<input name="filerPhone" defaultValue={company?.filerPhone ?? ""} maxLength={11} /></label>
+            <label className="field">{t("分機")}<input name="filerExt" defaultValue={company?.filerExt ?? ""} maxLength={5} style={{ width: 70 }} /></label>
             <label className="field">
-              委託記帳士登錄字號（留空＝自行申報）
+              {t("委託記帳士登錄字號（留空＝自行申報）")}
               <input name="declarationAgentNo" defaultValue={company?.declarationAgentNo ?? ""} maxLength={20} />
             </label>
           </fieldset>
-          <button className="primary">儲存</button>
+          <button className="primary">{t("儲存")}</button>
         </form>
       </div>
 
       <div className="card">
-        <h3>電子發票字軌區間（向國稅局申請核准後，於大平台取號）</h3>
+        <h3>{t("電子發票字軌區間（向國稅局申請核准後，於大平台取號）")}</h3>
         <form className="inline" onSubmit={addTrack}>
-          <label className="field">期別（YYYYMM 奇數月）<input name="period" maxLength={6} required /></label>
-          <label className="field">字軌（2 字母）<input name="track" maxLength={2} required /></label>
-          <label className="field">起號<input name="rangeStart" type="number" required /></label>
-          <label className="field">迄號<input name="rangeEnd" type="number" required /></label>
-          <button className="primary">新增區間</button>
+          <label className="field">{t("期別（YYYYMM 奇數月）")}<input name="period" maxLength={6} required /></label>
+          <label className="field">{t("字軌（2 字母）")}<input name="track" maxLength={2} required /></label>
+          <label className="field">{t("起號")}<input name="rangeStart" type="number" required /></label>
+          <label className="field">{t("迄號")}<input name="rangeEnd" type="number" required /></label>
+          <button className="primary">{t("新增區間")}</button>
         </form>
         <table style={{ marginTop: 12 }}>
-          <thead><tr><th>期別</th><th>字軌</th><th className="num">起號</th><th className="num">迄號</th><th className="num">下一號</th><th className="num">剩餘</th><th /></tr></thead>
+          <thead><tr><th>{t("期別")}</th><th>{t("字軌")}</th><th className="num">{t("起號")}</th><th className="num">{t("迄號")}</th><th className="num">{t("下一號")}</th><th className="num">{t("剩餘")}</th><th /></tr></thead>
           <tbody>
-            {tracks.data?.map((t) => {
-              const remaining = Math.max(0, t.rangeEnd - t.nextNo + 1);
+            {tracks.data?.map((tr) => {
+              const remaining = Math.max(0, tr.rangeEnd - tr.nextNo + 1);
               // 尾款預警（B7）：剩餘低於 20 轉紅——快用罄才發現，下期字軌來不及申請就開不了發票。
               // 只警示當期（含以後）的區間：過期期別本來就不再開號，紅字只會稀釋警示
-              const low = remaining < 20 && t.period >= periodOf(new Date().toISOString().slice(0, 10));
+              const low = remaining < 20 && tr.period >= periodOf(new Date().toISOString().slice(0, 10));
               return (
-              <tr key={t.id}>
-                <td>{t.period}</td>
-                <td>{t.track}</td>
-                <td className="num">{String(t.rangeStart).padStart(8, "0")}</td>
-                <td className="num">{String(t.rangeEnd).padStart(8, "0")}</td>
-                <td className="num">{String(t.nextNo).padStart(8, "0")}</td>
+              <tr key={tr.id}>
+                <td>{tr.period}</td>
+                <td>{tr.track}</td>
+                <td className="num">{String(tr.rangeStart).padStart(8, "0")}</td>
+                <td className="num">{String(tr.rangeEnd).padStart(8, "0")}</td>
+                <td className="num">{String(tr.nextNo).padStart(8, "0")}</td>
                 <td
                   className="num"
                   style={low ? { color: "var(--red)", fontWeight: 600 } : undefined}
-                  title={low ? "剩餘號碼即將用罄：發票要連號使用，號碼用完就開不了發票——請確認是否已申請並建立後續字軌區間" : undefined}
+                  title={low ? t("剩餘號碼即將用罄：發票要連號使用，號碼用完就開不了發票——請確認是否已申請並建立後續字軌區間") : undefined}
                 >
-                  {remaining}{low && "（即將用罄）"}
+                  {remaining}{low && t("（即將用罄）")}
                 </td>
                 <td>
-                  {t.nextNo === t.rangeStart ? (
-                    <button className="small" onClick={() => deleteTrack(t.id)}>刪除</button>
+                  {tr.nextNo === tr.rangeStart ? (
+                    <button className="small" onClick={() => deleteTrack(tr.id)}>{t("刪除")}</button>
                   ) : (
-                    <span style={{ fontSize: 12, color: "var(--text-2)" }} title="已配出號碼的區間是配號紀錄，不可刪除；開錯的發票請至「電子發票」頁逐張作廢">
-                      已配號
+                    <span style={{ fontSize: 12, color: "var(--text-2)" }} title={t("已配出號碼的區間是配號紀錄，不可刪除；開錯的發票請至「電子發票」頁逐張作廢")}>
+                      {t("已配號")}
                     </span>
                   )}
                 </td>
@@ -1132,43 +1124,40 @@ export function Settings() {
       </div>
 
       <div className="card">
-        <h3>庫存開帳（既有公司導入：建立期初在庫量與成本）</h3>
+        <h3>{t("庫存開帳（既有公司導入：建立期初在庫量與成本）")}</h3>
         <form className="inline" onSubmit={(e) => e.preventDefault()}>
-          <label className="field">開帳日<input type="date" value={openingDate} onChange={(e) => setOpeningDate(e.target.value)} /></label>
+          <label className="field">{t("開帳日")}<input type="date" value={openingDate} onChange={(e) => setOpeningDate(e.target.value)} /></label>
         </form>
         {openingLines.map((l, i) => (
           <form key={i} className="inline" style={{ marginTop: 8 }} onSubmit={(e) => e.preventDefault()}>
             <label className="field">
-              商品
+              {t("商品")}
               <select value={l.productId} onChange={(e) => setOpeningLine(i, { productId: Number(e.target.value) })}>
-                <option value={0}>— 請選擇 —</option>
+                <option value={0}>{t("— 請選擇 —")}</option>
                 {products.data?.map((p) => (
                   <option key={p.id} value={p.id}>{p.sku} {p.name}</option>
                 ))}
               </select>
             </label>
-            <label className="field">數量<input type="number" min={0} value={l.qty} onChange={(e) => setOpeningLine(i, { qty: Number(e.target.value) })} /></label>
-            <label className="field">單位成本<input type="number" min={0} step="0.01" value={l.unitCost} onChange={(e) => setOpeningLine(i, { unitCost: Number(e.target.value) })} /></label>
+            <label className="field">{t("數量")}<input type="number" min={0} value={l.qty} onChange={(e) => setOpeningLine(i, { qty: Number(e.target.value) })} /></label>
+            <label className="field">{t("單位成本")}<input type="number" min={0} step="0.01" value={l.unitCost} onChange={(e) => setOpeningLine(i, { unitCost: Number(e.target.value) })} /></label>
             {i === openingLines.length - 1 && (
               <button className="small" onClick={() => setOpeningLines((ls) => [...ls, { productId: 0, qty: 0, unitCost: 0 }])}>
-                ＋明細
+                {t("＋明細")}
               </button>
             )}
           </form>
         ))}
         <div style={{ marginTop: 12 }}>
-          <button className="primary" onClick={submitOpening}>建立庫存開帳</button>
+          <button className="primary" onClick={submitOpening}>{t("建立庫存開帳")}</button>
           {openingTotal > 0 && (
             <span style={{ marginLeft: 12, fontWeight: 600 }}>
-              開帳合計 {fmt(openingTotal)} 元（期初傳票的存貨科目請借記此金額）
+              {t("開帳合計 {amount} 元（期初傳票的存貨科目請借記此金額）", { amount: fmt(openingTotal) })}
             </span>
           )}
         </div>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          庫存開帳只建立在庫量與移動平均成本基礎，<strong>不拋轉傳票</strong>；請至「傳票」頁以一張手工傳票
-          開帳其餘期初科目（現金銀行、存貨、固定資產、借款、股本、累積盈虧等），存貨科目借記上方合計金額。
-          期初的應收／應付請改用下方「期初應收／應付」（那邊會自動拋轉，手工傳票不要重複入）。
-          月結關帳的檢查清單會核對庫存明細帳與存貨科目餘額，漏補傳票時會在那裡提示差額。
+          {t("庫存開帳只建立在庫量與移動平均成本基礎，")}<strong>{t("不拋轉傳票")}</strong>{t("；請至「傳票」頁以一張手工傳票開帳其餘期初科目（現金銀行、存貨、固定資產、借款、股本、累積盈虧等），存貨科目借記上方合計金額。期初的應收／應付請改用下方「期初應收／應付」（那邊會自動拋轉，手工傳票不要重複入）。月結關帳的檢查清單會核對庫存明細帳與存貨科目餘額，漏補傳票時會在那裡提示差額。")}
         </p>
       </div>
 

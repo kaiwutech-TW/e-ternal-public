@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../api.ts";
 import { useFetch } from "../hooks.ts";
 import type { Account, AccountType } from "../types.ts";
+import { useT } from "../i18n.ts";
 import { EmptyState } from "../ui.tsx";
 
 const TYPE_LABEL: Record<AccountType, string> = {
@@ -36,6 +37,7 @@ function typeEditable(a: Account): boolean {
 }
 
 export function Accounts() {
+  const t = useT();
   // 維護頁一律連停用科目一起抓：停用的科目要能被找到才點得回啟用
   const accounts = useFetch<Account[]>("/accounts?includeInactive=1");
   const [error, setError] = useState<string | null>(null);
@@ -126,61 +128,59 @@ export function Accounts() {
       {notice && <div className="notice">{notice}</div>}
 
       <div className="card">
-        <h3>新增科目</h3>
+        <h3>{t("新增科目")}</h3>
         <form className="inline" onSubmit={addAccount}>
-          <label className="field">科目代號（4 碼數字）<input name="code" required maxLength={4} placeholder="6121" /></label>
-          <label className="field">科目名稱<input name="name" required placeholder="租金支出" /></label>
+          <label className="field">{t("科目代號（4 碼數字）")}<input name="code" required maxLength={4} placeholder="6121" /></label>
+          <label className="field">{t("科目名稱")}<input name="name" required placeholder={t("租金支出")} /></label>
           <label className="field">
-            類別
+            {t("類別")}
             <select name="type" value={newType} onChange={(e) => setNewType(e.target.value as AccountType)}>
-              {(Object.keys(TYPE_LABEL) as AccountType[]).map((t) => (
-                <option key={t} value={t}>{TYPE_LABEL[t]}（{TYPE_HINT[t]}）</option>
+              {(Object.keys(TYPE_LABEL) as AccountType[]).map((k) => (
+                <option key={k} value={k}>{t("{type}（{hint}）", { type: t(TYPE_LABEL[k]), hint: t(TYPE_HINT[k]) })}</option>
               ))}
             </select>
           </label>
           {/* 現金科目只對資產類有意義，選其他類別時直接不顯示（後端也會擋） */}
           {newType === "asset" && (
-            <label className="field" title="勾了以後，這個科目的收付會被算進現金流量表與儀表板的現金水位">
+            <label className="field" title={t("勾了以後，這個科目的收付會被算進現金流量表與儀表板的現金水位")}>
               <input type="checkbox" name="isCash" />
-              現金科目
+              {t("現金科目")}
             </label>
           )}
-          <button className="primary">新增</button>
+          <button className="primary">{t("新增")}</button>
         </form>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          編碼規則：1 資產、2 負債、3 權益、4 營業收入、5 營業成本、6 營業費用、7 營業外收支、8 所得稅。
-          代號首碼與類別必須相符（例如 6 開頭一定是費用），選錯會被擋下。
-          代號一經建立就不能改（歷史傳票會對不起來）——打錯代號請停用後另建一個；
-          若只是類別選錯，在該科目「還沒入過帳」之前可以直接改（7 開頭的業外科目才有收入／費用可選）。
-          建好科目後要記期初餘額，請到「傳票」頁開一張開帳傳票。
+          {t("編碼規則：1 資產、2 負債、3 權益、4 營業收入、5 營業成本、6 營業費用、7 營業外收支、8 所得稅。")}{" "}
+          {t("代號首碼與類別必須相符（例如 6 開頭一定是費用），選錯會被擋下。")}{" "}
+          {t("代號一經建立就不能改（歷史傳票會對不起來）——打錯代號請停用後另建一個；")}{" "}
+          {t("若只是類別選錯，在該科目「還沒入過帳」之前可以直接改（7 開頭的業外科目才有收入／費用可選）。")}{" "}
+          {t("建好科目後要記期初餘額，請到「傳票」頁開一張開帳傳票。")}
         </p>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          新增自己的銀行帳戶科目（例如 1104 銀行存款－玉山）時記得勾「現金科目」：
-          勾了它才會被算進現金流量表與儀表板的現金水位，也才會出現在收付款、報銷付款、
-          資產處分價款的科目下拉選單。沒勾的話，錢照樣記在帳上（試算表、資產負債表都看得到），
-          但現金流量表會完全看不到這個帳戶的進出——期末現金就會和資產負債表對不起來。
+          {t("新增自己的銀行帳戶科目（例如 1104 銀行存款－玉山）時記得勾「現金科目」：勾了它才會被算進現金流量表與儀表板的現金水位，也才會出現在收付款、報銷付款、資產處分價款的科目下拉選單。")}{" "}
+          {t("沒勾的話，錢照樣記在帳上（試算表、資產負債表都看得到），但現金流量表會完全看不到這個帳戶的進出——期末現金就會和資產負債表對不起來。")}
         </p>
       </div>
 
       <div className="card">
-        <h3>科目一覽（{rows.length} 個）</h3>
+        <h3>{t("科目一覽（{n} 個）", { n: rows.length })}</h3>
         <label className="field" style={{ marginBottom: 8 }}>
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          顯示已停用科目（{inactiveCount} 個）
+          {t("顯示已停用科目（{n} 個）", { n: inactiveCount })}
         </label>
 
         {accounts.data?.length === 0 && (
           <EmptyState
             icon="📒"
-            title="還沒有會計科目"
-            desc="科目表應該在系統初始化時就灌好。若這裡是空的，代表 seed 沒跑到，請執行 pnpm --filter @tw-erp/api migrate 後重新整理。"
+            title={t("還沒有會計科目")}
+            desc={t("科目表應該在系統初始化時就灌好。若這裡是空的，代表 seed 沒跑到，請執行 pnpm --filter @tw-erp/api migrate 後重新整理。")}
           />
         )}
 
         {rows.length > 0 && (
           <table style={{ marginTop: 12 }}>
             <thead>
-              <tr><th>代號</th><th>名稱</th><th>類別</th><th>現金科目</th><th>狀態</th><th>操作</th></tr>
+              <tr><th>{t("代號")}</th><th>{t("名稱")}</th><th>{t("類別")}</th><th>{t("現金科目")}</th><th>{t("狀態")}</th><th>{t("操作")}</th></tr>
             </thead>
             <tbody>
               {rows.map((a) => (
@@ -194,8 +194,8 @@ export function Accounts() {
                           autoFocus
                           onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                         />
-                        <button className="small">儲存</button>
-                        <button type="button" className="small" onClick={() => setEditing(null)}>取消</button>
+                        <button className="small">{t("儲存")}</button>
+                        <button type="button" className="small" onClick={() => setEditing(null)}>{t("取消")}</button>
                       </form>
                     ) : (
                       a.name
@@ -215,59 +215,59 @@ export function Accounts() {
                           setEditing({ ...editing, type, isCash: type === "asset" ? editing.isCash : false });
                         }}
                       >
-                        {allowedTypesForCode(a.code).map((t) => (
-                          <option key={t} value={t}>{TYPE_LABEL[t]}</option>
+                        {allowedTypesForCode(a.code).map((k) => (
+                          <option key={k} value={k}>{t(TYPE_LABEL[k])}</option>
                         ))}
                       </select>
                     ) : (
-                      TYPE_LABEL[a.type]
+                      t(TYPE_LABEL[a.type])
                     )}
                     {!allowedTypesForCode(a.code).includes(a.type) && (
                       <span
                         className="badge canceled"
-                        title={`代號 ${a.code.charAt(0)}xxx 與類別「${TYPE_LABEL[a.type]}」不符，這個科目的金額在報表上會缺席。請按編輯改成正確類別`}
+                        title={t("代號 {prefix}xxx 與類別「{type}」不符，這個科目的金額在報表上會缺席。請按編輯改成正確類別", { prefix: a.code.charAt(0), type: t(TYPE_LABEL[a.type]) })}
                       >
-                        類別不符
+                        {t("類別不符")}
                       </span>
                     )}
                   </td>
                   <td>
                     {editing?.id === a.id && (editing.type === "asset" || editing.isCash) ? (
-                      <label title="勾了以後，這個科目的收付會被算進現金流量表與儀表板的現金水位">
+                      <label title={t("勾了以後，這個科目的收付會被算進現金流量表與儀表板的現金水位")}>
                         <input
                           type="checkbox"
                           checked={editing.isCash}
                           disabled={editing.type !== "asset"}
                           onChange={(e) => setEditing({ ...editing, isCash: e.target.checked })}
                         />{" "}
-                        納入現金流量表
+                        {t("納入現金流量表")}
                       </label>
                     ) : a.isCash ? (
-                      <span className="badge issued" title="現金流量表與現金水位會算進這個科目">現金</span>
+                      <span className="badge issued" title={t("現金流量表與現金水位會算進這個科目")}>{t("現金")}</span>
                     ) : (
                       ""
                     )}
                   </td>
                   <td>
-                    {a.isSystem && <span className="badge" title="系統科目：進銷貨、收付款、折舊、報銷、年度結轉的自動分錄直接指定這個代號">系統</span>}
-                    {a.active ? <span className="badge issued">啟用中</span> : <span className="badge canceled">已停用</span>}
+                    {a.isSystem && <span className="badge" title={t("系統科目：進銷貨、收付款、折舊、報銷、年度結轉的自動分錄直接指定這個代號")}>{t("系統")}</span>}
+                    {a.active ? <span className="badge issued">{t("啟用中")}</span> : <span className="badge canceled">{t("已停用")}</span>}
                   </td>
                   <td>
                     {editing?.id !== a.id && (
-                      <button className="small" onClick={() => startEdit(a)}>編輯</button>
+                      <button className="small" onClick={() => startEdit(a)}>{t("編輯")}</button>
                     )}{" "}
                     {a.isSystem ? (
                       // 系統科目不可停用；但「已經是停用狀態」的系統科目必須給得回啟用的路，
                       // 否則自動分錄永遠過不了帳（正常情況下 seed 會在啟動時自動扳回啟用）
                       a.active ? (
-                        <span style={{ fontSize: 12, color: "var(--text-2)" }}>系統科目不可停用</span>
+                        <span style={{ fontSize: 12, color: "var(--text-2)" }}>{t("系統科目不可停用")}</span>
                       ) : (
-                        <button className="small" onClick={() => setActive(a, true)}>啟用（系統科目停用中會讓單據過不了帳）</button>
+                        <button className="small" onClick={() => setActive(a, true)}>{t("啟用（系統科目停用中會讓單據過不了帳）")}</button>
                       )
                     ) : a.active ? (
-                      <button className="small" onClick={() => setActive(a, false)}>停用</button>
+                      <button className="small" onClick={() => setActive(a, false)}>{t("停用")}</button>
                     ) : (
-                      <button className="small" onClick={() => setActive(a, true)}>啟用</button>
+                      <button className="small" onClick={() => setActive(a, true)}>{t("啟用")}</button>
                     )}
                   </td>
                 </tr>
@@ -277,12 +277,10 @@ export function Accounts() {
         )}
 
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          停用不是刪除：已經記過帳的科目永遠留在系統裡，明細分類帳與報表照樣查得到，
-          停用只是讓它不再出現在傳票、收付款、報銷的下拉選單，且停用後不能再對它過帳。
-          停用還有餘額的科目不會被阻擋，但會提示餘額金額——要把餘額轉走請先開一張手工傳票。
-          標示「系統」的科目被自動分錄直接指定，停用了進銷貨就無法過帳，因此不開放停用（名稱仍可改）。
-          勾了「現金科目」的科目會被算進現金流量表與儀表板現金水位；預設科目表內建的
-          1101 庫存現金、1102 零用金、1103 銀行存款一律是現金科目，改了會在下次啟動時被系統校正回來。
+          {t("停用不是刪除：已經記過帳的科目永遠留在系統裡，明細分類帳與報表照樣查得到，停用只是讓它不再出現在傳票、收付款、報銷的下拉選單，且停用後不能再對它過帳。")}{" "}
+          {t("停用還有餘額的科目不會被阻擋，但會提示餘額金額——要把餘額轉走請先開一張手工傳票。")}{" "}
+          {t("標示「系統」的科目被自動分錄直接指定，停用了進銷貨就無法過帳，因此不開放停用（名稱仍可改）。")}{" "}
+          {t("勾了「現金科目」的科目會被算進現金流量表與儀表板現金水位；預設科目表內建的 1101 庫存現金、1102 零用金、1103 銀行存款一律是現金科目，改了會在下次啟動時被系統校正回來。")}
         </p>
       </div>
     </div>

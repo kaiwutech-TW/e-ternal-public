@@ -26,6 +26,9 @@ function safeGet(): string | null {
 export function getLocale(): Locale {
   const stored = safeGet();
   if (isLocale(stored)) return stored;
+  // 測試環境（vitest）沒有明確偏好就用來源語言：jsdom 的 navigator.language 是 en-US，
+  // 否則所有靠中文標籤找元素、或斷言中文訊息的既有測試都會無聲變英文。
+  if (import.meta.env?.VITEST) return "zh-TW";
   const nav = typeof navigator !== "undefined" ? navigator.language : "";
   return nav.toLowerCase().startsWith("en") ? "en" : "zh-TW";
 }

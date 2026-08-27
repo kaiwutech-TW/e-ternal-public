@@ -72,17 +72,18 @@ async function createAdjustmentCore(
   const byId = new Map(products.map((p) => [p.id, p]));
   for (const l of input.lines) {
     const p = byId.get(l.productId);
-    if (!p) throw new AppError(404, `商品不存在: ${l.productId}`);
+    if (!p) throw new AppError(404, "商品不存在: {id}", { id: l.productId });
     if (p.isService) {
-      throw new AppError(422, `「${p.name}」是服務項目，不入庫存，沒有可盤點或報廢的數量`);
+      throw new AppError(422, "「{name}」是服務項目，不入庫存，沒有可盤點或報廢的數量", { name: p.name });
     }
-    if (l.qtyDiff === 0) throw new AppError(422, `「${p.name}」的調整量為 0——沒有差異的商品請直接不列`);
+    if (l.qtyDiff === 0) throw new AppError(422, "「{name}」的調整量為 0——沒有差異的商品請直接不列", { name: p.name });
     // 報廢／過期是「東西沒了」，只會讓庫存變少；多出來的貨是盤盈，請用盤點（count）
     if (l.qtyDiff > 0 && input.reason !== "count") {
       throw new AppError(
         422,
-        `「${p.name}」的調整量為正數（+${l.qtyDiff}），但原因是${REASON_LABEL[input.reason]}——` +
-          `報廢只會讓庫存變少。多出來的貨請把原因改成「盤點差異」`,
+        "「{name}」的調整量為正數（+{qty}），但原因是{reason}——" +
+          "報廢只會讓庫存變少。多出來的貨請把原因改成「盤點差異」",
+        { name: p.name, qty: l.qtyDiff, reason: REASON_LABEL[input.reason] },
       );
     }
   }
@@ -99,8 +100,9 @@ async function createAdjustmentCore(
       if (state.qty < qty) {
         throw new AppError(
           409,
-          `「${p.name}」在庫 ${state.qty}，欲調減 ${qty}——帳上沒有那麼多可以扣。` +
-            `若實際數量就是比帳上少，請用盤點（實盤量填實際數字），系統會算出正確的差異`,
+          "「{name}」在庫 {onHand}，欲調減 {qty}——帳上沒有那麼多可以扣。" +
+            "若實際數量就是比帳上少，請用盤點（實盤量填實際數字），系統會算出正確的差異",
+          { name: p.name, onHand: state.qty, qty },
         );
       }
       const unitCost = movingAvgUnitCost(state.qty, state.amount);
@@ -111,8 +113,9 @@ async function createAdjustmentCore(
       if (state.qty <= 0) {
         throw new AppError(
           422,
-          `「${p.name}」帳上在庫為 ${state.qty}，沒有移動平均成本可以給盤盈計價。` +
-            `帳上不存在的貨請先建立成本基礎：導入期用「設定」頁的庫存開帳，日常請補登進貨單`,
+          "「{name}」帳上在庫為 {onHand}，沒有移動平均成本可以給盤盈計價。" +
+            "帳上不存在的貨請先建立成本基礎：導入期用「設定」頁的庫存開帳，日常請補登進貨單",
+          { name: p.name, onHand: state.qty },
         );
       }
       const unitCost = movingAvgUnitCost(state.qty, state.amount);
@@ -166,7 +169,7 @@ async function createAdjustmentCore(
   const codeToId = new Map(accounts.map((a) => [a.code, a.id]));
   const need = (code: string): number => {
     const id = codeToId.get(code);
-    if (!id) throw new AppError(500, `科目未初始化: ${code}`);
+    if (!id) throw new AppError(500, "科目未初始化: {code}", { code });
     return id;
   };
   const memo = `庫存調整單 #${doc!.id}（${REASON_LABEL[input.reason]}）${input.memo ? `：${input.memo}` : ""}`;
@@ -258,7 +261,7 @@ export async function createStocktake(db: Db, input: StocktakeInput, userId: num
     await lockProducts(tx, productIds);
     const diffs: (AdjustmentLineInput & { bookQty: number; countedQty: number })[] = [];
     for (const l of input.lines) {
-      if (l.countedQty < 0) throw new AppError(422, `實盤量不可為負數（商品 ${l.productId}）——最少就是 0`);
+      if (l.countedQty < 0) throw new AppError(422, "實盤量不可為負數（商品 {id}）——最少就是 0", { id: l.productId });
       const { qty: bookQty } = await onHand(tx, l.productId);
       const diff = l.countedQty - bookQty;
       if (diff !== 0) {

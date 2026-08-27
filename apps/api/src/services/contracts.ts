@@ -19,7 +19,7 @@ export const CONTRACT_KINDS = ["project", "retainer", "maintenance", "other"] as
 
 async function requireContract(db: Db, id: number) {
   const [row] = await db.select().from(schema.contracts).where(eq(schema.contracts.id, id));
-  if (!row) throw new AppError(404, `合約不存在: ${id}`);
+  if (!row) throw new AppError(404, "合約不存在: {id}", { id });
   return row;
 }
 
@@ -33,7 +33,7 @@ async function requireInstallment(db: Db, contractId: number, installmentId: num
         eq(schema.contractInstallments.contractId, contractId),
       ),
     );
-  if (!row) throw new AppError(404, `合約 #${contractId} 沒有這一期請款計畫: ${installmentId}`);
+  if (!row) throw new AppError(404, "合約 #{contractId} 沒有這一期請款計畫: {installmentId}", { contractId, installmentId });
   return row;
 }
 
@@ -140,11 +140,12 @@ export async function generateSchedule(
   const [fy, fm] = [Number(input.from.slice(0, 4)), Number(input.from.slice(5, 7))];
   const [ty, tm] = [Number(input.to.slice(0, 4)), Number(input.to.slice(5, 7))];
   const months = (ty - fy) * 12 + (tm - fm) + 1;
-  if (months <= 0) throw new AppError(422, `迄月（${input.to.slice(0, 7)}）不可早於起月（${input.from.slice(0, 7)}）`);
+  if (months <= 0) throw new AppError(422, "迄月（{to}）不可早於起月（{from}）", { to: input.to.slice(0, 7), from: input.from.slice(0, 7) });
   if (months > MAX_GENERATED_INSTALLMENTS) {
     throw new AppError(
       422,
-      `一次最多產生 ${MAX_GENERATED_INSTALLMENTS} 期（本次會產生 ${months} 期）——請確認起迄年份沒有打錯；真的要更長請分次產生`,
+      "一次最多產生 {max} 期（本次會產生 {months} 期）——請確認起迄年份沒有打錯；真的要更長請分次產生",
+      { max: MAX_GENERATED_INSTALLMENTS, months },
     );
   }
   const items = Array.from({ length: months }, (_, i) => {
@@ -166,13 +167,15 @@ export async function deleteInstallment(db: Db, contractId: number, installmentI
   if (await billedSaleOf(db, row.saleId)) {
     throw new AppError(
       409,
-      `第 ${row.seq} 期已開銷貨單 #${row.saleId}，不能刪除計畫列。要取消這期請先作廢那張銷貨單（作廢後本期自動回到未請款）`,
+      "第 {seq} 期已開銷貨單 #{saleId}，不能刪除計畫列。要取消這期請先作廢那張銷貨單（作廢後本期自動回到未請款）",
+      { seq: row.seq, saleId: row.saleId },
     );
   }
   if (await matchedPurchaseOf(db, row.purchaseId)) {
     throw new AppError(
       409,
-      `第 ${row.seq} 期已勾對進貨單 #${row.purchaseId}，不能刪除計畫列。要取消這期請先解除勾對`,
+      "第 {seq} 期已勾對進貨單 #{purchaseId}，不能刪除計畫列。要取消這期請先解除勾對",
+      { seq: row.seq, purchaseId: row.purchaseId },
     );
   }
   // 未請款的計畫列可以刪：計畫不是單據（設計紀律見 migration 0037 檔頭）
@@ -189,13 +192,15 @@ export async function updateInstallment(
   if (await billedSaleOf(db, row.saleId)) {
     throw new AppError(
       409,
-      `第 ${row.seq} 期已開銷貨單 #${row.saleId}，金額與日期以那張單為準。要改請先作廢它`,
+      "第 {seq} 期已開銷貨單 #{saleId}，金額與日期以那張單為準。要改請先作廢它",
+      { seq: row.seq, saleId: row.saleId },
     );
   }
   if (await matchedPurchaseOf(db, row.purchaseId)) {
     throw new AppError(
       409,
-      `第 ${row.seq} 期已勾對進貨單 #${row.purchaseId}，金額與日期以那張單為準。要改請先解除勾對`,
+      "第 {seq} 期已勾對進貨單 #{purchaseId}，金額與日期以那張單為準。要改請先解除勾對",
+      { seq: row.seq, purchaseId: row.purchaseId },
     );
   }
   await db
@@ -236,7 +241,7 @@ export async function billInstallment(
   const row = await requireInstallment(db, contractId, installmentId);
   const billedSale = await billedSaleOf(db, row.saleId);
   if (billedSale) {
-    throw new AppError(409, `第 ${row.seq} 期已開過銷貨單 #${billedSale.id}。重複請款請先作廢那張單`);
+    throw new AppError(409, "第 {seq} 期已開過銷貨單 #{saleId}。重複請款請先作廢那張單", { seq: row.seq, saleId: billedSale.id });
   }
   // 銷貨單沒有 memo 欄——合約與銷貨單的關聯由 contract_installments.sale_id 承載
   //（畫面上兩邊互相看得到），不靠字串備註
@@ -269,16 +274,16 @@ export async function matchInstallment(db: Db, contractId: number, installmentId
   if (contract.status === "terminated") throw new AppError(409, "已終止的合約不能再勾對付款");
   const row = await requireInstallment(db, contractId, installmentId);
   if (await matchedPurchaseOf(db, row.purchaseId)) {
-    throw new AppError(409, `第 ${row.seq} 期已勾對進貨單 #${row.purchaseId}。要換一張請先解除勾對`);
+    throw new AppError(409, "第 {seq} 期已勾對進貨單 #{purchaseId}。要換一張請先解除勾對", { seq: row.seq, purchaseId: row.purchaseId });
   }
   const [purchase] = await db.select().from(schema.purchases).where(eq(schema.purchases.id, purchaseId));
-  if (!purchase) throw new AppError(404, `進貨單不存在: ${purchaseId}`);
-  if (purchase.voidedAt) throw new AppError(409, `進貨單 #${purchaseId} 已作廢，不能勾對`);
+  if (!purchase) throw new AppError(404, "進貨單不存在: {purchaseId}", { purchaseId });
+  if (purchase.voidedAt) throw new AppError(409, "進貨單 #{purchaseId} 已作廢，不能勾對", { purchaseId });
   if (contract.partnerId !== null && purchase.partnerId !== contract.partnerId) {
     throw new AppError(
       422,
-      `進貨單 #${purchaseId} 的供應商與合約連結的交易對象不同——勾錯對象的單會讓應付與合約對不上。` +
-        `確定是同一家（例如集團內開票主體不同）請先調整合約的交易對象連結`,
+      "進貨單 #{purchaseId} 的供應商與合約連結的交易對象不同——勾錯對象的單會讓應付與合約對不上。確定是同一家（例如集團內開票主體不同）請先調整合約的交易對象連結",
+      { purchaseId },
     );
   }
   // 一張進貨單只能勾一期（任何合約）：同一張發票對兩期＝重複認列付款義務
@@ -287,7 +292,7 @@ export async function matchInstallment(db: Db, contractId: number, installmentId
     .from(schema.contractInstallments)
     .where(eq(schema.contractInstallments.purchaseId, purchaseId));
   if (taken) {
-    throw new AppError(409, `進貨單 #${purchaseId} 已勾對在合約 #${taken.contractId} 第 ${taken.seq} 期。一張單只能勾一期`);
+    throw new AppError(409, "進貨單 #{purchaseId} 已勾對在合約 #{contractId} 第 {seq} 期。一張單只能勾一期", { purchaseId, contractId: taken.contractId, seq: taken.seq });
   }
   await db
     .update(schema.contractInstallments)
@@ -304,7 +309,7 @@ export async function unmatchInstallment(db: Db, contractId: number, installment
   const contract = await requireContract(db, contractId);
   if (contract.direction !== "purchase") throw new AppError(409, "只有進貨合約的期別有勾對可解除");
   const row = await requireInstallment(db, contractId, installmentId);
-  if (row.purchaseId === null) throw new AppError(409, `第 ${row.seq} 期沒有勾對任何進貨單`);
+  if (row.purchaseId === null) throw new AppError(409, "第 {seq} 期沒有勾對任何進貨單", { seq: row.seq });
   await db
     .update(schema.contractInstallments)
     .set({ purchaseId: null })

@@ -263,8 +263,8 @@ function assertTypeMatchesCode(code: string, type: AccountType): void {
   const label = ACCOUNT_PREFIX_LABELS[prefix] ?? "未定義的首碼";
   throw new AppError(
     400,
-    `代號 ${prefix}xxx 是${label}，類別應為 ${allowed.map((t) => ACCOUNT_TYPE_LABEL[t]).join(" 或 ")}` +
-      `，不是 ${ACCOUNT_TYPE_LABEL[type]}。請改類別，或改用${label}以外的代號首碼`,
+    "代號 {prefix}xxx 是{label}，類別應為 {allowedLabels}，不是 {typeLabel}。請改類別，或改用{label}以外的代號首碼",
+    { prefix, label, allowedLabels: allowed.map((t) => ACCOUNT_TYPE_LABEL[t]).join(" 或 "), typeLabel: ACCOUNT_TYPE_LABEL[type] },
   );
 }
 
@@ -314,16 +314,13 @@ function assertPartnerIdentity(v: {
   if (v.isIndividual && v.taxId) {
     throw new AppError(
       422,
-      "勾選「個人」的交易對象不能有統一編號：統編是營利事業的識別碼。" +
-        "個人房東／個人接案者請把統編欄清空，改填身分證統一編號（年度憑單申報要用）；" +
-        "若對方其實是公司，請取消「個人」的勾選",
+      "勾選「個人」的交易對象不能有統一編號：統編是營利事業的識別碼。個人房東／個人接案者請把統編欄清空，改填身分證統一編號（年度憑單申報要用）；若對方其實是公司，請取消「個人」的勾選",
     );
   }
   if (!v.isIndividual && v.idNo) {
     throw new AppError(
       422,
-      "只有勾選「個人」的交易對象才需要身分證統一編號。" +
-        "若這筆是個人，請勾選「個人」並清空統一編號；若是公司，請把身分證號欄清空、改填統一編號",
+      "只有勾選「個人」的交易對象才需要身分證統一編號。若這筆是個人，請勾選「個人」並清空統一編號；若是公司，請把身分證號欄清空、改填統一編號",
     );
   }
 }
@@ -544,13 +541,13 @@ function listQuery(c: Context): ListFilter {
   const from = date("from");
   const to = date("to");
   if (from && to && from > to) {
-    throw new AppError(400, `日期範圍顛倒：from（${from}）晚於 to（${to}），請對調`);
+    throw new AppError(400, "日期範圍顛倒：from（{from}）晚於 to（{to}），請對調", { from, to });
   }
   let partnerId: number | undefined;
   const rawPartner = q["partnerId"];
   if (rawPartner !== undefined && rawPartner !== "") {
     if (!/^[1-9]\d*$/.test(rawPartner)) {
-      throw new AppError(400, `partnerId 須為正整數（收到「${rawPartner}」）`);
+      throw new AppError(400, "partnerId 須為正整數（收到「{rawPartner}」）", { rawPartner });
     }
     partnerId = Number(rawPartner);
   }
@@ -580,9 +577,7 @@ function assertCashSettlementAllowed(user: AuthUser, body: { settlement?: "auto"
   if (body.settlement !== "cash" || canAccessPage(user.role, "cash")) return;
   throw new AppError(
     403,
-    "「當場退現」會直接動到現金／銀行科目，需要「收付款」頁的權限，您的角色沒有。" +
-      "請取消勾選「當場退現」再送出：系統會自動沖掉對方還欠的貨款，沖不掉的部分掛在其他應付款／" +
-      "其他應收款，之後由財務開一張付款單退款——退回單本身照樣開得成立。",
+    "「當場退現」會直接動到現金／銀行科目，需要「收付款」頁的權限，您的角色沒有。請取消勾選「當場退現」再送出：系統會自動沖掉對方還欠的貨款，沖不掉的部分掛在其他應付款／其他應收款，之後由財務開一張付款單退款——退回單本身照樣開得成立。",
   );
 }
 
@@ -895,15 +890,15 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (linked) {
       throw new AppError(
         409,
-        `該員工已連結帳號「${linked.username}」——一個員工只能連一個帳號（報銷紀錄是個人資料）。` +
-          `要換帳號請先把「${linked.username}」的連結解除`,
+        "該員工已連結帳號「{username}」——一個員工只能連一個帳號（報銷紀錄是個人資料）。要換帳號請先把「{username}」的連結解除",
+        { username: linked.username },
       );
     }
   };
   app.post("/users", zValidator("json", newUserInput), async (c) => {
     const body = c.req.valid("json");
     const [dup] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.username, body.username));
-    if (dup) throw new AppError(409, `帳號已存在: ${body.username}`);
+    if (dup) throw new AppError(409, "帳號已存在: {username}", { username: body.username });
     if (body.employeeId != null) await assertEmployeeNotLinked(body.employeeId);
     const [row] = await db
       .insert(schema.users)
@@ -953,7 +948,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       })
       .where(eq(schema.users.id, id))
       .returning();
-    if (!row) throw new AppError(404, `使用者不存在: ${id}`);
+    if (!row) throw new AppError(404, "使用者不存在: {id}", { id });
     // 舊的備援碼跟著密鑰一起作廢，否則它們會變成一組繞過重新設定的後門
     if (body.totpEnabled === false) {
       await db.delete(schema.totpRecoveryCodes).where(eq(schema.totpRecoveryCodes.userId, id));
@@ -998,8 +993,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (dup && dup.id !== excludeId) {
       throw new AppError(
         409,
-        `統一編號 ${taxId} 已登記在「${dup.name}」（#${dup.id}）。同一家公司請直接用既有的那筆；` +
-          `若既有那筆建錯了，請先修改或清空它的統編`,
+        "統一編號 {taxId} 已登記在「{name}」（#{id}）。同一家公司請直接用既有的那筆；若既有那筆建錯了，請先修改或清空它的統編",
+        { taxId, name: dup.name, id: dup.id },
       );
     }
   }
@@ -1007,9 +1002,9 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   /** 業務負責人必須是在職員工：停用（離職）的員工不可再被指派到客戶上 */
   async function assertSalesOwnerActive(employeeId: number) {
     const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.id, employeeId));
-    if (!emp) throw new AppError(404, `員工不存在: ${employeeId}（業務負責人請先在「客戶與商品」頁的員工區建立）`);
+    if (!emp) throw new AppError(404, "員工不存在: {employeeId}（業務負責人請先在「客戶與商品」頁的員工區建立）", { employeeId });
     if (!emp.active) {
-      throw new AppError(422, `員工「${emp.name}」已停用，不可指派為業務負責人。請改指派在職員工，或先把他復職`);
+      throw new AppError(422, "員工「{name}」已停用，不可指派為業務負責人。請改指派在職員工，或先把他復職", { name: emp.name });
     }
   }
 
@@ -1052,12 +1047,11 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const id = idParam(c);
     const body = c.req.valid("json");
     const [target] = await db.select().from(schema.partners).where(eq(schema.partners.id, id));
-    if (!target) throw new AppError(404, `交易對象不存在: ${id}`);
+    if (!target) throw new AppError(404, "交易對象不存在: {id}", { id });
     if (Object.keys(body).length === 0) {
       throw new AppError(
         400,
-        "未提供要修改的欄位（可改：name、taxId、idNo、isCustomer、isSupplier、isIndividual、" +
-          "contactPerson、phone、email、address、shipToAddress、paymentTermDays、creditLimit、salesOwnerEmployeeId、note）",
+        "未提供要修改的欄位（可改：name、taxId、idNo、isCustomer、isSupplier、isIndividual、contactPerson、phone、email、address、shipToAddress、paymentTermDays、creditLimit、salesOwnerEmployeeId、note）",
       );
     }
     // 互斥檢查要用「改完之後」的狀態判斷：同一次請求可能一邊勾個人、一邊清統編。
@@ -1108,7 +1102,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       .set({ idNo: null })
       .where(eq(schema.partners.id, id))
       .returning();
-    if (!row) throw new AppError(404, `交易對象不存在: ${id}`);
+    if (!row) throw new AppError(404, "交易對象不存在: {id}", { id });
     return c.json(publicPartner(row));
   });
   /**
@@ -1122,7 +1116,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       .select({ id: schema.partners.id, name: schema.partners.name, idNo: schema.partners.idNo })
       .from(schema.partners)
       .where(eq(schema.partners.id, id));
-    if (!row) throw new AppError(404, `交易對象不存在: ${id}`);
+    if (!row) throw new AppError(404, "交易對象不存在: {id}", { id });
     // 全系統唯一會把這個欄位還原成明文的地方（寫入端見 encryptPii 的三個呼叫點）
     return c.json({ ...row, idNo: decryptPii(row.idNo) });
   });
@@ -1135,7 +1129,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       .from(schema.products)
       .where(eq(schema.products.sku, body.sku));
     if (dup) {
-      throw new AppError(409, `SKU ${body.sku} 已存在（「${dup.name}」#${dup.id}）。同一項商品請直接用既有的那筆，或改用別的 SKU`);
+      throw new AppError(409, "SKU {sku} 已存在（「{name}」#{id}）。同一項商品請直接用既有的那筆，或改用別的 SKU", { sku: body.sku, name: dup.name, id: dup.id });
     }
     const [row] = await db
       .insert(schema.products)
@@ -1164,7 +1158,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       throw new AppError(400, "SKU 不可修改：歷史單據與倉庫標籤都對著它。打錯 SKU 請另建正確的商品，舊的那筆不再選用");
     }
     const [target] = await db.select().from(schema.products).where(eq(schema.products.id, id));
-    if (!target) throw new AppError(404, `商品不存在: ${id}`);
+    if (!target) throw new AppError(404, "商品不存在: {id}", { id });
     if (Object.keys(body).length === 0) {
       throw new AppError(400, "未提供要修改的欄位（可改：name、unit、listPrice、category、isService、minStock、note）");
     }
@@ -1174,8 +1168,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (qty > 0) {
         throw new AppError(
           422,
-          `「${target.name}」目前在庫 ${qty} ${target.unit}，不可改成服務項目（改了之後這批庫存再也無法出貨）。` +
-            `請先把在庫量出清或以退出處理，再改設定`,
+          "「{name}」目前在庫 {qty} {unit}，不可改成服務項目（改了之後這批庫存再也無法出貨）。請先把在庫量出清或以退出處理，再改設定",
+          { name: target.name, qty, unit: target.unit },
         );
       }
     }
@@ -1220,8 +1214,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (type !== "asset") {
       throw new AppError(
         400,
-        `${code} 是${ACCOUNT_TYPE_LABEL[type]}科目，不可設為現金科目：` +
-          `現金流量表與現金水位只取資產類的現金/銀行科目`,
+        "{code} 是{typeLabel}科目，不可設為現金科目：現金流量表與現金水位只取資產類的現金/銀行科目",
+        { code, typeLabel: ACCOUNT_TYPE_LABEL[type] },
       );
     }
   }
@@ -1254,7 +1248,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       .select({ id: schema.accounts.id })
       .from(schema.accounts)
       .where(eq(schema.accounts.code, body.code));
-    if (dup) throw new AppError(409, `科目代號已存在: ${body.code}`);
+    if (dup) throw new AppError(409, "科目代號已存在: {code}", { code: body.code });
     const [row] = await db
       .insert(schema.accounts)
       .values({ code: body.code, name: body.name, type: body.type, isCash: body.isCash ?? false })
@@ -1275,7 +1269,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       throw new AppError(400, "科目代號不可修改：已入帳的分錄會對不起來。請停用舊科目後新增正確的科目");
     }
     const [target] = await db.select().from(schema.accounts).where(eq(schema.accounts.id, id));
-    if (!target) throw new AppError(404, `科目不存在: ${id}`);
+    if (!target) throw new AppError(404, "科目不存在: {id}", { id });
     if (body.name === undefined && body.active === undefined && body.type === undefined && body.isCash === undefined) {
       // drizzle 的 .set({}) 會丟 "No values to set"（500）——空 body 是使用者輸入問題，不是伺服器錯誤
       throw new AppError(400, "未提供要修改的欄位（可修改：name、active、type、isCash）");
@@ -1283,7 +1277,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (body.active === false && target.isSystem) {
       throw new AppError(
         422,
-        `${target.code} ${target.name} 是系統科目，進銷貨/收付款/折舊/報銷/結轉的自動分錄直接指定它，停用會讓這些單據無法過帳`,
+        "{code} {name} 是系統科目，進銷貨/收付款/折舊/報銷/結轉的自動分錄直接指定它，停用會讓這些單據無法過帳",
+        { code: target.code, name: target.name },
       );
     }
     // 類別可改，但僅限「還沒入過帳」：類別一改，該科目的歷史分錄會整批換一張報表出現
@@ -1293,7 +1288,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (target.isSystem) {
         throw new AppError(
           422,
-          `${target.code} ${target.name} 是系統科目，自動分錄依它的類別決定借貸方向與報表歸屬，不可改類別`,
+          "{code} {name} 是系統科目，自動分錄依它的類別決定借貸方向與報表歸屬，不可改類別",
+          { code: target.code, name: target.name },
         );
       }
       assertTypeMatchesCode(target.code, body.type);
@@ -1301,9 +1297,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (count > 0) {
         throw new AppError(
           422,
-          `${target.code} ${target.name} 已有 ${count} 筆分錄，不可改類別` +
-            `（改了會讓既有分錄整批換一張報表，歷史帳與已申報數字對不起來）。` +
-            `請停用後另建正確代號的科目`,
+          "{code} {name} 已有 {count} 筆分錄，不可改類別（改了會讓既有分錄整批換一張報表，歷史帳與已申報數字對不起來）。請停用後另建正確代號的科目",
+          { code: target.code, name: target.name, count },
         );
       }
     }
@@ -1528,7 +1523,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const to = c.req.query("to");
     for (const [name, v] of [["from", from], ["to", to]] as const) {
       if (v !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-        throw new AppError(400, `${name} 須為 YYYY-MM-DD（收到「${v}」）`);
+        throw new AppError(400, "{name} 須為 YYYY-MM-DD（收到「{v}」）", { name, v });
       }
     }
     return c.json(await inventoryMovementLedger(db, productId, from, to));
@@ -1611,16 +1606,16 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (month < 1 || month > 12 || month % 2 === 0) {
       throw new AppError(
         422,
-        `期別 ${body.period} 不是有效的發票期別：發票字軌以兩個月為一期、從奇數月起算，` +
-          `月份只能是 01、03、05、07、09、11（例如 202607 代表 7-8 月）。請改用該區間所屬期別的起始奇數月`,
+        "期別 {period} 不是有效的發票期別：發票字軌以兩個月為一期、從奇數月起算，月份只能是 01、03、05、07、09、11（例如 202607 代表 7-8 月）。請改用該區間所屬期別的起始奇數月",
+        { period: body.period },
       );
     }
     // 發票號碼固定 8 位：超過 8 位的區間每次開票都會在 XML 驗證炸掉，而且 rollback 後
     // 這組壞字軌永遠是「有餘號」的那筆，該期別從此開不出任何發票
     if (body.rangeEnd > 99999999) {
-      throw new AppError(422, `迄號 ${body.rangeEnd} 超過 8 位數：發票號碼固定 8 碼，起訖號須在 0 到 99999999 之間，請核對核准函上的號碼區間`);
+      throw new AppError(422, "迄號 {rangeEnd} 超過 8 位數：發票號碼固定 8 碼，起訖號須在 0 到 99999999 之間，請核對核准函上的號碼區間", { rangeEnd: body.rangeEnd });
     }
-    if (body.rangeStart > body.rangeEnd) throw new AppError(422, `起號 ${body.rangeStart} 大於迄號 ${body.rangeEnd}，請核對後對調或修正`);
+    if (body.rangeStart > body.rangeEnd) throw new AppError(422, "起號 {rangeStart} 大於迄號 {rangeEnd}，請核對後對調或修正", { rangeStart: body.rangeStart, rangeEnd: body.rangeEnd });
     // 撞號先查再擋（同 SKU／統編的做法）：讓 uq_track_range 去攔會回 500 internal error，
     // 使用者以為沒存進去而重按，得到的正是同一個 500
     const [dup] = await db
@@ -1636,8 +1631,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (dup) {
       throw new AppError(
         409,
-        `期別 ${body.period} 字軌 ${body.track} 起號 ${body.rangeStart} 的區間已存在（#${dup.id}）。` +
-          `若剛才按過一次「新增區間」，代表已建立成功，直接使用即可；要接續號碼請用新的起號`,
+        "期別 {period} 字軌 {track} 起號 {rangeStart} 的區間已存在（#{id}）。若剛才按過一次「新增區間」，代表已建立成功，直接使用即可；要接續號碼請用新的起號",
+        { period: body.period, track: body.track, rangeStart: body.rangeStart, id: dup.id },
       );
     }
     // 區間重疊也要擋（B7 尾款）：同期別同字軌的 1-50 與 30-80 建得進去的話，
@@ -1662,9 +1657,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (overlap) {
       throw new AppError(
         422,
-        `期別 ${body.period} 字軌 ${body.track} 的新區間 ${body.rangeStart}-${body.rangeEnd} 與既有區間 ` +
-          `#${overlap.id}（${overlap.rangeStart}-${overlap.rangeEnd}）重疊——同一個號碼不會被核准兩次，` +
-          `請核對核准函上的號碼區間。要接續號碼請從 ${overlap.rangeEnd + 1} 起`,
+        "期別 {period} 字軌 {track} 的新區間 {rangeStart}-{rangeEnd} 與既有區間 #{id}（{oStart}-{oEnd}）重疊——同一個號碼不會被核准兩次，請核對核准函上的號碼區間。要接續號碼請從 {next} 起",
+        { period: body.period, track: body.track, rangeStart: body.rangeStart, rangeEnd: body.rangeEnd, id: overlap.id, oStart: overlap.rangeStart, oEnd: overlap.rangeEnd, next: overlap.rangeEnd + 1 },
       );
     }
     const [row] = await db
@@ -1679,12 +1673,12 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.delete("/invoice-tracks/:id", async (c) => {
     const id = idParam(c);
     const [track] = await db.select().from(schema.invoiceTracks).where(eq(schema.invoiceTracks.id, id));
-    if (!track) throw new AppError(404, `字軌區間不存在: ${id}`);
+    if (!track) throw new AppError(404, "字軌區間不存在: {id}", { id });
     if (track.nextNo !== track.rangeStart) {
       throw new AppError(
         409,
-        `期別 ${track.period} 字軌 ${track.track} 這組區間已配出 ${track.nextNo - track.rangeStart} 個號碼，不可刪除` +
-          `（區間是已開發票號碼的來歷紀錄）。開錯的發票請到「電子發票」頁逐張作廢；剩下的號碼不再使用即可`,
+        "期別 {period} 字軌 {track} 這組區間已配出 {used} 個號碼，不可刪除（區間是已開發票號碼的來歷紀錄）。開錯的發票請到「電子發票」頁逐張作廢；剩下的號碼不再使用即可",
+        { period: track.period, track: track.track, used: track.nextNo - track.rangeStart },
       );
     }
     await db.delete(schema.invoiceTracks).where(eq(schema.invoiceTracks.id, id));
@@ -1762,7 +1756,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const [row] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, idParam(c)));
     if (!row) throw new AppError(404, "發票不存在");
     if (!row.cancelXml) {
-      throw new AppError(422, `發票 ${row.invoiceNumber} 未作廢，沒有 F0501 作廢訊息（作廢請在電子發票頁操作）`);
+      throw new AppError(422, "發票 {invoiceNumber} 未作廢，沒有 F0501 作廢訊息（作廢請在電子發票頁操作）", { invoiceNumber: row.invoiceNumber });
     }
     return c.text(row.cancelXml, 200, {
       "content-type": "application/xml; charset=utf-8",
@@ -1805,7 +1799,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       // 已關帳（可能已申報）期間補登供應商發票，等於無聲改掉該期的進項稅額。
       // 鎖的是進貨單日期（被改動數字的那一期），不是登錄動作的日期。
       const [purchase] = await tx.select().from(schema.purchases).where(eq(schema.purchases.id, id));
-      if (!purchase) throw new AppError(404, `進貨單不存在: ${id}`);
+      if (!purchase) throw new AppError(404, "進貨單不存在: {id}", { id });
       // R20 之後 401 進項歸期優先吃 inv_date（無值退回 doc_date）：鎖帳要鎖「數字被改動的那幾期」——
       // 原本的有效歸期（已登錄過的單）與這次的新歸期都要開著，否則已申報期間仍會被無聲改寫
       const effectiveDates = new Set<string>([body.invDate ?? purchase.docDate]);
@@ -1833,8 +1827,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (dupInv) {
         throw new AppError(
           422,
-          `這家供應商的發票 ${body.track}${body.no} 已登錄在進貨單 #${dupInv.id}——同一張發票登兩次` +
-            `會讓進項稅重複列報（少繳稅）。請核對號碼；若 #${dupInv.id} 才是登錯的那張，先去修正或作廢它`,
+          "這家供應商的發票 {track}{no} 已登錄在進貨單 #{id}——同一張發票登兩次會讓進項稅重複列報（少繳稅）。請核對號碼；若 #{id} 才是登錯的那張，先去修正或作廢它",
+          { track: body.track, no: body.no, id: dupInv.id },
         );
       }
       // R5（反向，第四批）：報銷側建單時已查 purchases（expenses.ts assertInvoiceNotClaimed），
@@ -1858,9 +1852,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (dupClaim) {
         throw new AppError(
           422,
-          `發票 ${invoiceNumber} 已列報在報銷單 #${dupClaim.claimId}——同一張發票再登進貨會讓進項稅` +
-            `重複列報（少繳稅）。請核對號碼；若 #${dupClaim.claimId} 才是登錯的那張，請先退回它。` +
-            `確為不同賣方的同號發票，報銷明細補上賣方統編即可放行`,
+          "發票 {invoiceNumber} 已列報在報銷單 #{claimId}——同一張發票再登進貨會讓進項稅重複列報（少繳稅）。請核對號碼；若 #{claimId} 才是登錯的那張，請先退回它。確為不同賣方的同號發票，報銷明細補上賣方統編即可放行",
+          { invoiceNumber, claimId: dupClaim.claimId },
         );
       }
       const [row] = await tx
@@ -1884,7 +1877,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (raw === undefined || raw === "") return undefined;
     const n = Number(raw);
     if (!Number.isInteger(n) || n < 0) {
-      throw new AppError(422, `上期累積留抵須為非負整數元，收到「${raw}」——留抵不可能是負數或小數`);
+      throw new AppError(422, "上期累積留抵須為非負整數元，收到「{raw}」——留抵不可能是負數或小數", { raw });
     }
     return n;
   };
@@ -1917,7 +1910,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.get("/vat-returns/401/filings", async (c) => c.json(await listReturn401Filings(db)));
   app.delete("/vat-returns/401/filings/:period", async (c) => {
     const period = c.req.param("period");
-    if (!/^\d{6}$/.test(period)) throw new AppError(400, `期別格式須為 YYYYMM: ${period}`);
+    if (!/^\d{6}$/.test(period)) throw new AppError(400, "期別格式須為 YYYYMM: {period}", { period });
     return c.json(await deleteReturn401Filing(db, period));
   });
 
@@ -2214,7 +2207,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     if (Object.keys(body).length === 0) throw new AppError(400, "未提供要修改的欄位");
     if (body.parentId === id) throw new AppError(422, "部門不能是自己的上級");
     const [row] = await db.update(schema.departments).set(body).where(eq(schema.departments.id, id)).returning();
-    if (!row) throw new AppError(404, `部門不存在: ${id}`);
+    if (!row) throw new AppError(404, "部門不存在: {id}", { id });
     return c.json(row);
   });
 
@@ -2234,7 +2227,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.post("/shifts", zValidator("json", shiftInput), async (c) => {
     const body = c.req.valid("json");
     const [dup] = await db.select({ id: schema.shifts.id }).from(schema.shifts).where(eq(schema.shifts.code, body.code));
-    if (dup) throw new AppError(409, `班別代碼已存在: ${body.code}`);
+    if (dup) throw new AppError(409, "班別代碼已存在: {code}", { code: body.code });
     const [row] = await db.insert(schema.shifts).values({ ...body, breaks: body.breaks ?? [] }).returning();
     return c.json(row!, 201);
   });
@@ -2244,7 +2237,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const body = c.req.valid("json");
     if (Object.keys(body).length === 0) throw new AppError(400, "未提供要修改的欄位（班別代碼不可改）");
     const [row] = await db.update(schema.shifts).set(body).where(eq(schema.shifts.id, id)).returning();
-    if (!row) throw new AppError(404, `班別不存在: ${id}`);
+    if (!row) throw new AppError(404, "班別不存在: {id}", { id });
     return c.json(row);
   });
 
@@ -2463,7 +2456,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   );
   app.delete("/calendar-days/:day", async (c) => {
     const day = c.req.param("day");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new AppError(400, `日期格式須為 YYYY-MM-DD（收到「${day}」）`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new AppError(400, "日期格式須為 YYYY-MM-DD（收到「{day}」）", { day });
     return c.json(await deleteCalendarDay(db, day));
   });
 
@@ -2634,7 +2627,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const id = idParam(c);
     const body = c.req.valid("json");
     const [target] = await db.select().from(schema.employees).where(eq(schema.employees.id, id));
-    if (!target) throw new AppError(404, `員工不存在: ${id}`);
+    if (!target) throw new AppError(404, "員工不存在: {id}", { id });
     if (Object.keys(body).length === 0) {
       throw new AppError(
         400,
@@ -2675,7 +2668,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.get("/expense-categories", async (c) => {
     const raw = c.req.query("onDate");
     if (raw !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      throw new AppError(400, `onDate 須為 YYYY-MM-DD（收到「${raw}」）`);
+      throw new AppError(400, "onDate 須為 YYYY-MM-DD（收到「{raw}」）", { raw });
     }
     const onDate = raw ?? new Date().toISOString().slice(0, 10);
     const rows = [];
@@ -2769,7 +2762,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const rawStatus = c.req.query("status");
     const statusParse = z.enum(["submitted", "approved", "rejected", "paid"]).optional().safeParse(rawStatus);
     if (!statusParse.success) {
-      throw new AppError(400, `status 須為 submitted/approved/rejected/paid（收到「${rawStatus}」）`);
+      throw new AppError(400, "status 須為 submitted/approved/rejected/paid（收到「{rawStatus}」）", { rawStatus });
     }
     const { rows, total } = await listClaims(
       db,
@@ -3063,7 +3056,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     }
     // R2：先後檢查要用「改完之後」的狀態——單改 endDate 也要跟既有的 startDate 比
     const [existing] = await db.select().from(schema.contracts).where(eq(schema.contracts.id, id));
-    if (!existing) throw new AppError(404, `合約不存在: ${id}`);
+    if (!existing) throw new AppError(404, "合約不存在: {id}", { id });
     // 0046：方向改錯要有出路，但已對上單據（含已作廢的指標）就不能翻面——
     // 銷貨單指標掛在進貨合約上是資料矛盾，翻面前先把各期的單據處理乾淨
     if (body.direction && body.direction !== existing.direction) {
@@ -3079,7 +3072,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       if (linked.length) {
         throw new AppError(
           409,
-          `這份合約已有 ${linked.length} 期對上單據，不能改方向。請先作廢銷貨單／解除勾對後再改`,
+          "這份合約已有 {n} 期對上單據，不能改方向。請先作廢銷貨單／解除勾對後再改",
+          { n: linked.length },
         );
       }
     }
@@ -3092,7 +3086,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       .set(body)
       .where(eq(schema.contracts.id, id))
       .returning();
-    if (!row) throw new AppError(404, `合約不存在: ${id}`);
+    if (!row) throw new AppError(404, "合約不存在: {id}", { id });
     const { fileData, ...rest } = row;
     return c.json({ ...rest, hasFile: !!fileData });
   });
@@ -3220,7 +3214,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.get("/tax-parameters", async (c) => {
     const raw = c.req.query("asOf");
     if (raw !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      throw new AppError(400, `asOf 須為 YYYY-MM-DD（收到「${raw}」）`);
+      throw new AppError(400, "asOf 須為 YYYY-MM-DD（收到「{raw}」）", { raw });
     }
     return c.json({
       rows: await listParameters(db, raw),
@@ -3462,7 +3456,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       proceedsIncludeTax: c.req.query("proceedsIncludeTax"),
     });
     if (!parsed.success) {
-      throw new AppError(400, `試算參數有誤：${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("；")}`);
+      throw new AppError(400, "試算參數有誤：{issues}", { issues: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("；") });
     }
     const q = parsed.data;
     return c.json(
@@ -3499,7 +3493,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   // 供前端 downloadText——CSV 掛同一條路由（而非 /exports）：看得到報表的人就下載得了它
   app.get("/reports/depreciation-schedule", async (c) => {
     const raw = c.req.query("year");
-    if (!raw || !/^\d{4}$/.test(raw)) throw new AppError(400, `缺少 year 參數（四位數西元年，收到「${raw ?? ""}」）`);
+    if (!raw || !/^\d{4}$/.test(raw)) throw new AppError(400, "缺少 year 參數（四位數西元年，收到「{raw}」）", { raw: raw ?? "" });
     const year = Number(raw);
     if (c.req.query("format") === "csv") return c.json(await depreciationScheduleExport(db, year));
     return c.json(await depreciationSchedule(db, year));
@@ -3522,7 +3516,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
   app.get("/journal-entries/:id", async (c) => {
     const id = Number(c.req.param("id"));
     const [entry] = await db.select().from(schema.journalEntries).where(eq(schema.journalEntries.id, id));
-    if (!entry) throw new AppError(404, `傳票不存在: ${id}`);
+    if (!entry) throw new AppError(404, "傳票不存在: {id}", { id });
     const lines = await db
       .select({
         code: schema.accounts.code,

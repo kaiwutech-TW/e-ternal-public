@@ -11,6 +11,7 @@ import { canAccessPage, type PageKey, type Role } from "@tw-erp/core";
 import { schema } from "@tw-erp/db";
 import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import type { Params } from "@tw-erp/core";
 import { decryptPii, encryptPii } from "./pii.ts";
 import {
   generateRecoveryCodes,
@@ -126,7 +127,7 @@ async function assertNotThrottled(db: Db, username: string, source: string): Pro
     if (state.count < max || !state.oldest) continue;
     const waitMs = state.oldest.getTime() + THROTTLE_WINDOW_MIN * 60 * 1000 - now;
     const waitMin = Math.max(1, Math.ceil(waitMs / 60000));
-    throw new AppError(429, `登入失敗次數過多，請約 ${waitMin} 分鐘後再試`);
+    throw new AppError(429, "登入失敗次數過多，請約 {waitMin} 分鐘後再試", { waitMin });
   }
 }
 
@@ -150,9 +151,9 @@ export async function login(
   totpCode?: string | undefined,
 ) {
   await assertNotThrottled(db, username, source);
-  const fail = async (status: number, message: string): Promise<never> => {
+  const fail = async (status: number, message: string, params?: Params): Promise<never> => {
     await db.insert(schema.loginFailures).values({ username, source });
-    throw new AppError(status, message);
+    throw new AppError(status, message, params);
   };
 
   const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username));

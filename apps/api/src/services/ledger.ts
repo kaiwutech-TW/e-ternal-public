@@ -34,11 +34,11 @@ export async function createManualEntry(db: Db, input: ManualEntryInput) {
     const codeToId = new Map(accounts.map((a) => [a.code, a.id]));
     for (const l of input.lines) {
       const account = byCode.get(l.accountCode);
-      if (!account) throw new AppError(422, `科目不存在: ${l.accountCode}`);
+      if (!account) throw new AppError(422, "科目不存在: {code}", { code: l.accountCode });
       // 停用的科目不得再過帳，否則「停用」只是把下拉選單藏起來：手打代號或程式化呼叫照樣入得進去，
       // 而使用者以為這個科目已經封存（既有分錄與餘額仍完整保留，這裡擋的只有「新增」）。
       if (!account.active) {
-        throw new AppError(400, `科目已停用，不可再過帳: ${account.code} ${account.name}（請改用其他科目，或先啟用它）`);
+        throw new AppError(400, "科目已停用，不可再過帳: {code} {name}（請改用其他科目，或先啟用它）", { code: account.code, name: account.name });
       }
     }
     const [entry] = await tx
@@ -239,9 +239,8 @@ async function assertAllocTargetNotLater(
   if (later) {
     throw new AppError(
       422,
-      `${label} 的單據日期（${later.docDate}）晚於${asOfLabel}（${asOf}）——` +
-        `不能沖銷日期在後面的單據。請把${asOfLabel}改成不早於 ${later.docDate}，` +
-        `或先不指定沖銷這張單（沖不掉的部分會掛預收/預付，之後可再沖用）`,
+      "{label} 的單據日期（{docDate}）晚於{asOfLabel}（{asOf}）——不能沖銷日期在後面的單據。請把{asOfLabel}改成不早於 {docDate}，或先不指定沖銷這張單（沖不掉的部分會掛預收/預付，之後可再沖用）",
+      { label, docDate: later.docDate, asOfLabel, asOf },
     );
   }
 }
@@ -253,9 +252,9 @@ export async function createCashDoc(db: Db, input: CashDocInput) {
     assertNotFarFuture(input.docDate, input.kind === "receipt" ? "收款日期" : "付款日期");
     await assertPeriodOpen(tx, input.docDate);
     const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, input.partnerId));
-    if (!partner) throw new AppError(404, `交易對象不存在: ${input.partnerId}`);
-    if (input.kind === "receipt" && !partner.isCustomer) throw new AppError(422, `非客戶: ${partner.name}`);
-    if (input.kind === "payment" && !partner.isSupplier) throw new AppError(422, `非供應商: ${partner.name}`);
+    if (!partner) throw new AppError(404, "交易對象不存在: {id}", { id: input.partnerId });
+    if (input.kind === "receipt" && !partner.isCustomer) throw new AppError(422, "非客戶: {name}", { name: partner.name });
+    if (input.kind === "payment" && !partner.isSupplier) throw new AppError(422, "非供應商: {name}", { name: partner.name });
 
     // 立沖驗證：加總不得超過收付金額；單筆不得超過該單據未沖餘額；單據須屬同一對象。
     // targetType 未帶＝沖銷貨/進貨（舊行為）；sale 與 opening 是各自的 id 空間，鍵必須含型別
@@ -267,7 +266,7 @@ export async function createCashDoc(db: Db, input: CashDocInput) {
     const open = await openDocuments(tx, input.partnerId, input.kind, input.docDate);
     if (allocations.length) {
       const sum = allocations.reduce((s, a) => s + a.amount, 0);
-      if (sum > input.amount) throw new AppError(422, `沖銷合計 ${sum} 超過收付金額 ${input.amount}`);
+      if (sum > input.amount) throw new AppError(422, "沖銷合計 {sum} 超過收付金額 {amount}", { sum, amount: input.amount });
       const openByKey = new Map(open.map((d) => [`${d.docType}:${d.id}`, d]));
       for (const a of allocations) {
         if (a.amount <= 0) throw new AppError(422, "沖銷金額須為正整數");
@@ -278,10 +277,10 @@ export async function createCashDoc(db: Db, input: CashDocInput) {
             tx, input.partnerId, input.kind, a, input.docDate,
             input.kind === "receipt" ? "收款日期" : "付款日期", label,
           );
-          throw new AppError(422, `${label} 不存在、非本對象或已沖畢`);
+          throw new AppError(422, "{label} 不存在、非本對象或已沖畢", { label });
         }
         if (a.amount > target.remaining) {
-          throw new AppError(422, `${label} 未沖餘額 ${target.remaining}，欲沖 ${a.amount}`);
+          throw new AppError(422, "{label} 未沖餘額 {remaining}，欲沖 {amount}", { label, remaining: target.remaining, amount: a.amount });
         }
       }
     }
@@ -299,21 +298,21 @@ export async function createCashDoc(db: Db, input: CashDocInput) {
 
     const accounts = await tx.select().from(schema.accounts);
     const cashAccount = accounts.find((a) => a.id === input.accountId);
-    if (!cashAccount) throw new AppError(404, `科目不存在: ${input.accountId}`);
+    if (!cashAccount) throw new AppError(404, "科目不存在: {id}", { id: input.accountId });
     // 必須是「現金科目」而不只是資產類：現金流量表只認 is_cash 的科目，
     // 收款記進非現金資產（例如建了銀行科目卻忘了勾現金）會讓這筆錢出現在資產負債表與試算表，
     // 卻從現金流量表與儀表板現金水位整筆消失，兩張表對不起來且毫無徵兆。
     if (!cashAccount.isCash) {
       throw new AppError(
         422,
-        `${cashAccount.code} ${cashAccount.name} 不是現金科目，不能當收付科目` +
-          `（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，收付的錢才會進現金流量表）`,
+        "{code} {name} 不是現金科目，不能當收付科目（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，收付的錢才會進現金流量表）",
+        { code: cashAccount.code, name: cashAccount.name },
       );
     }
     // 與手工傳票同一條規則：停用的科目不得再過帳。內建的 1101/1103 是系統科目停不掉，
     // 但使用者自建的銀行科目（例如「銀行存款－玉山」）停用後仍可用 id 指定，這裡一併擋下。
     if (!cashAccount.active) {
-      throw new AppError(400, `科目已停用，不可再過帳: ${cashAccount.code} ${cashAccount.name}`);
+      throw new AppError(400, "科目已停用，不可再過帳: {code} {name}", { code: cashAccount.code, name: cashAccount.name });
     }
     const arId = accounts.find((a) => a.code === ACCOUNT.ACCOUNTS_RECEIVABLE)?.id;
     const apId = accounts.find((a) => a.code === ACCOUNT.ACCOUNTS_PAYABLE)?.id;
@@ -427,7 +426,7 @@ export async function prepaidDocs(db: Db, partnerId: number, kind: "receipt" | "
  */
 export async function getCashDoc(db: Db, id: number) {
   const [doc] = await db.select().from(schema.cashDocs).where(eq(schema.cashDocs.id, id));
-  if (!doc) throw new AppError(404, `收付款單不存在: ${id}`);
+  if (!doc) throw new AppError(404, "收付款單不存在: {id}", { id });
   const [partner] = await db.select().from(schema.partners).where(eq(schema.partners.id, doc.partnerId));
   const allocs = await db
     .select()
@@ -487,17 +486,17 @@ export async function applyPrepaid(db: Db, cashDocId: number, input: ApplyPrepai
   return db.transaction(async (tx) => {
     await assertPeriodOpen(tx, input.applyDate);
     const [doc] = await tx.select().from(schema.cashDocs).where(eq(schema.cashDocs.id, cashDocId)).for("update");
-    if (!doc) throw new AppError(404, `收付款單不存在: ${cashDocId}`);
+    if (!doc) throw new AppError(404, "收付款單不存在: {id}", { id: cashDocId });
     const label = doc.kind === "receipt" ? "收款單" : "付款單";
     const balanceLabel = doc.kind === "receipt" ? "預收" : "預付";
     if (doc.voidedAt) {
-      throw new AppError(409, `${label} #${cashDocId} 已作廢，沒有${balanceLabel}餘額可沖用（請改用其他有餘額的單，或先收付款）`);
+      throw new AppError(409, "{label} #{id} 已作廢，沒有{balanceLabel}餘額可沖用（請改用其他有餘額的單，或先收付款）", { label, id: cashDocId, balanceLabel });
     }
     if (doc.unappliedAmount <= 0) {
-      throw new AppError(422, `${label} #${cashDocId} 沒有${balanceLabel}餘額——這張單建立時沒有溢${doc.kind === "receipt" ? "收" : "付"}`);
+      throw new AppError(422, "{label} #{id} 沒有{balanceLabel}餘額——這張單建立時沒有溢{dir}", { label, id: cashDocId, balanceLabel, dir: doc.kind === "receipt" ? "收" : "付" });
     }
     if (input.applyDate < doc.docDate) {
-      throw new AppError(422, `沖用日 ${input.applyDate} 早於${label}日期 ${doc.docDate}——錢還沒收付就不能拿它的餘額沖銷`);
+      throw new AppError(422, "沖用日 {applyDate} 早於{label}日期 {docDate}——錢還沒收付就不能拿它的餘額沖銷", { applyDate: input.applyDate, label, docDate: doc.docDate });
     }
 
     const prior = await tx
@@ -508,7 +507,7 @@ export async function applyPrepaid(db: Db, cashDocId: number, input: ApplyPrepai
     if (!input.allocations.length) throw new AppError(422, "至少要指定一筆要沖銷的單據");
     const sum = input.allocations.reduce((s, a) => s + a.amount, 0);
     if (sum > remaining) {
-      throw new AppError(422, `${label} #${cashDocId} 的${balanceLabel}餘額剩 ${remaining}，欲沖 ${sum}`);
+      throw new AppError(422, "{label} #{id} 的{balanceLabel}餘額剩 {remaining}，欲沖 {sum}", { label, id: cashDocId, balanceLabel, remaining, sum });
     }
 
     const defaultTargetType = doc.kind === "receipt" ? ("sale" as const) : ("purchase" as const);
@@ -521,10 +520,10 @@ export async function applyPrepaid(db: Db, cashDocId: number, input: ApplyPrepai
       const target = openByKey.get(`${a.targetType}:${a.targetId}`);
       if (!target) {
         await assertAllocTargetNotLater(tx, doc.partnerId, doc.kind, a, input.applyDate, "沖用日", targetLabel);
-        throw new AppError(422, `${targetLabel} 不存在、非本對象或已沖畢`);
+        throw new AppError(422, "{label} 不存在、非本對象或已沖畢", { label: targetLabel });
       }
       if (a.amount > target.remaining) {
-        throw new AppError(422, `${targetLabel} 未沖餘額 ${target.remaining}，欲沖 ${a.amount}`);
+        throw new AppError(422, "{label} 未沖餘額 {remaining}，欲沖 {amount}", { label: targetLabel, remaining: target.remaining, amount: a.amount });
       }
     }
 
@@ -609,9 +608,9 @@ export async function inventoryOpening(db: Db, input: { docDate: string; lines: 
     await assertPeriodOpen(tx, input.docDate);
     for (const l of input.lines) {
       const [product] = await tx.select().from(schema.products).where(eq(schema.products.id, l.productId));
-      if (!product) throw new AppError(404, `商品不存在: ${l.productId}`);
+      if (!product) throw new AppError(404, "商品不存在: {id}", { id: l.productId });
       if (product.isService) {
-        throw new AppError(422, `${product.name} 是服務項目，不入庫存，不能列入庫存開帳`);
+        throw new AppError(422, "{name} 是服務項目，不入庫存，不能列入庫存開帳", { name: product.name });
       }
     }
     const rows = input.lines.map((l) => ({

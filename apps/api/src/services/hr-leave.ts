@@ -44,7 +44,7 @@ export async function createLeaveType(
   },
 ) {
   const [dup] = await db.select({ id: schema.leaveTypes.id }).from(schema.leaveTypes).where(eq(schema.leaveTypes.code, input.code));
-  if (dup) throw new AppError(409, `假別代碼已存在: ${input.code}`);
+  if (dup) throw new AppError(409, "假別代碼已存在: {code}", { code: input.code });
   const [row] = await db
     .insert(schema.leaveTypes)
     .values({
@@ -73,9 +73,9 @@ export async function patchLeaveType(
   },
 ) {
   const [row] = await db.select().from(schema.leaveTypes).where(eq(schema.leaveTypes.id, id));
-  if (!row) throw new AppError(404, `假別不存在: ${id}`);
+  if (!row) throw new AppError(404, "假別不存在: {id}", { id });
   if (row.isSystem && input.name !== undefined && input.name !== row.name) {
-    throw new AppError(422, `內建假別「${row.name}」的名稱不可改（可停用、可設定給薪比率）`);
+    throw new AppError(422, "內建假別「{name}」的名稱不可改（可停用、可設定給薪比率）", { name: row.name });
   }
   const [updated] = await db.update(schema.leaveTypes).set(input).where(eq(schema.leaveTypes.id, id)).returning();
   return updated!;
@@ -112,9 +112,9 @@ export async function grantBalance(
   userId: number,
 ) {
   const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.id, input.employeeId));
-  if (!emp) throw new AppError(404, `員工不存在: ${input.employeeId}`);
+  if (!emp) throw new AppError(404, "員工不存在: {id}", { id: input.employeeId });
   const [lt] = await db.select().from(schema.leaveTypes).where(eq(schema.leaveTypes.id, input.leaveTypeId));
-  if (!lt) throw new AppError(404, `假別不存在: ${input.leaveTypeId}`);
+  if (!lt) throw new AppError(404, "假別不存在: {id}", { id: input.leaveTypeId });
   const [row] = await db
     .insert(schema.leaveBalances)
     .values({ ...input, note: input.note ?? "", updatedBy: userId })
@@ -164,7 +164,7 @@ export async function listBalances(db: Db, year: number, employeeId?: number) {
  */
 export async function buildApprovalChain(db: Db, employeeId: number): Promise<number[]> {
   const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.id, employeeId));
-  if (!emp) throw new AppError(404, `員工不存在: ${employeeId}`);
+  if (!emp) throw new AppError(404, "員工不存在: {id}", { id: employeeId });
   const chain: number[] = [];
   const push = async (candidateId: number | null) => {
     if (candidateId === null || candidateId === employeeId || chain.includes(candidateId)) return;
@@ -215,7 +215,7 @@ function assertRequestShape(input: CreateRequestInput): void {
   } else if (input.kind === "overtime") {
     if (!input.workDate) throw new AppError(422, "加班申請必須填加班日期");
     if (!input.dayType || !DAY_TYPES.includes(input.dayType as (typeof DAY_TYPES)[number])) {
-      throw new AppError(422, `加班申請必須選日型（${DAY_TYPES.map((d) => DAY_TYPE_LABELS[d]).join("／")}）`);
+      throw new AppError(422, "加班申請必須選日型（{types}）", { types: DAY_TYPES.map((d) => DAY_TYPE_LABELS[d]).join("／") });
     }
     if (!input.minutes || input.minutes <= 0) throw new AppError(422, "加班時數（分鐘）必須大於 0");
   } else if (input.kind === "punch_correction") {
@@ -223,7 +223,7 @@ function assertRequestShape(input: CreateRequestInput): void {
     if (input.direction !== "in" && input.direction !== "out") throw new AppError(422, "補卡申請必須選方向（上班／下班）");
     if (!input.claimedTime || !HHMM.test(input.claimedTime)) throw new AppError(422, "補卡申請必須填時刻（HH:MM）");
   } else {
-    throw new AppError(422, `未知的申請類型: ${input.kind}`);
+    throw new AppError(422, "未知的申請類型: {kind}", { kind: input.kind });
   }
 }
 
@@ -250,8 +250,8 @@ async function assertQuota(db: Db, employeeId: number, leaveTypeId: number, star
     const h = (m: number) => `${Math.floor(m / 60)} 時 ${m % 60} 分`;
     throw new AppError(
       422,
-      `額度不足：本年度給假 ${h(balance.grantedMinutes)}，已用＋簽核中 ${h(used)}，` +
-        `剩 ${h(Math.max(0, remaining))}，本次申請 ${h(minutes)}。要調整額度請洽人事（人事管理 → 額度帳）`,
+      "額度不足：本年度給假 {granted}，已用＋簽核中 {used}，剩 {remaining}，本次申請 {requested}。要調整額度請洽人事（人事管理 → 額度帳）",
+      { granted: h(balance.grantedMinutes), used: h(used), remaining: h(Math.max(0, remaining)), requested: h(minutes) },
     );
   }
 }
@@ -260,8 +260,8 @@ export async function createRequest(db: Db, input: CreateRequestInput, userId: n
   assertRequestShape(input);
   if (input.kind === "leave") {
     const [lt] = await db.select().from(schema.leaveTypes).where(eq(schema.leaveTypes.id, input.leaveTypeId!));
-    if (!lt) throw new AppError(404, `假別不存在: ${input.leaveTypeId}`);
-    if (!lt.active) throw new AppError(422, `假別「${lt.name}」已停用`);
+    if (!lt) throw new AppError(404, "假別不存在: {id}", { id: input.leaveTypeId });
+    if (!lt.active) throw new AppError(422, "假別「{name}」已停用", { name: lt.name });
     await assertQuota(db, input.employeeId, input.leaveTypeId!, input.startAt!, input.minutes!);
   }
   const chain = await buildApprovalChain(db, input.employeeId);
@@ -333,9 +333,9 @@ export async function decideStep(
 ) {
   return db.transaction(async (tx) => {
     const [req] = await tx.select().from(schema.hrRequests).where(eq(schema.hrRequests.id, input.requestId));
-    if (!req) throw new AppError(404, `申請單不存在: ${input.requestId}`);
+    if (!req) throw new AppError(404, "申請單不存在: {id}", { id: input.requestId });
     if (req.status !== "pending") {
-      throw new AppError(422, `這張申請單已${req.status === "approved" ? "核准" : req.status === "rejected" ? "駁回" : "取消"}，不能再簽`);
+      throw new AppError(422, "這張申請單已{state}，不能再簽", { state: req.status === "approved" ? "核准" : req.status === "rejected" ? "駁回" : "取消" });
     }
     const steps = await tx
       .select()
@@ -343,7 +343,7 @@ export async function decideStep(
       .where(eq(schema.hrRequestSteps.requestId, req.id))
       .orderBy(asc(schema.hrRequestSteps.stepNo));
     const current = steps.find((s) => s.status === "pending");
-    if (!current) throw new AppError(500, `申請單 #${req.id} 狀態為簽核中卻沒有待簽的關卡（資料不一致）`);
+    if (!current) throw new AppError(500, "申請單 #{id} 狀態為簽核中卻沒有待簽的關卡（資料不一致）", { id: req.id });
     if (!actor.isAdmin && current.approverEmployeeId !== actor.employeeId) {
       throw new AppError(403, "這一關的簽核人不是你（管理者可代簽）");
     }
@@ -389,7 +389,7 @@ export async function decideStep(
 export async function cancelRequest(db: Db, requestId: number, employeeId: number | null) {
   return db.transaction(async (tx) => {
     const [req] = await tx.select().from(schema.hrRequests).where(eq(schema.hrRequests.id, requestId));
-    if (!req) throw new AppError(404, `申請單不存在: ${requestId}`);
+    if (!req) throw new AppError(404, "申請單不存在: {id}", { id: requestId });
     if (req.employeeId !== employeeId) throw new AppError(403, "只能取消自己的申請單");
     if (req.status !== "pending") throw new AppError(422, "只有簽核中的申請單可以取消");
     await tx
@@ -484,7 +484,7 @@ export async function listCalendar(db: Db, year: number) {
 export async function setCalendarDays(db: Db, entries: { day: string; kind: string; name?: string | undefined }[]) {
   for (const e of entries) {
     if (e.kind !== "holiday" && e.kind !== "makeup_workday") {
-      throw new AppError(422, `行事曆的類型只能是 holiday（放假）或 makeup_workday（補班），收到「${e.kind}」（${e.day}）`);
+      throw new AppError(422, "行事曆的類型只能是 holiday（放假）或 makeup_workday（補班），收到「{kind}」（{day}）", { kind: e.kind, day: e.day });
     }
   }
   let count = 0;
@@ -500,6 +500,6 @@ export async function setCalendarDays(db: Db, entries: { day: string; kind: stri
 
 export async function deleteCalendarDay(db: Db, day: string) {
   const [row] = await db.delete(schema.calendarDays).where(eq(schema.calendarDays.day, day)).returning();
-  if (!row) throw new AppError(404, `行事曆上沒有 ${day} 這一天`);
+  if (!row) throw new AppError(404, "行事曆上沒有 {day} 這一天", { day });
   return { ok: true };
 }

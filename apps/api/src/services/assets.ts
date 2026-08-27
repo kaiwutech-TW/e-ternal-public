@@ -47,13 +47,13 @@ export interface AssetInput {
 async function accountIdByCode(db: Db, codes: string[]): Promise<Map<string, number>> {
   const rows = await db.select().from(schema.accounts).where(inArray(schema.accounts.code, codes));
   const map = new Map(rows.map((r) => [r.code, r.id]));
-  for (const code of codes) if (!map.has(code)) throw new AppError(500, `科目未初始化: ${code}（請重跑 migrate/seed）`);
+  for (const code of codes) if (!map.has(code)) throw new AppError(500, "科目未初始化: {code}（請重跑 migrate/seed）", { code });
   return map;
 }
 
 export async function createAsset(db: Db, input: AssetInput, createdBy: number) {
   const category = CATEGORY_BY_KEY.get(input.category);
-  if (!category) throw new AppError(422, `資產類別不存在: ${input.category}`);
+  if (!category) throw new AppError(422, "資產類別不存在: {category}", { category: input.category });
   const usefulYears = input.usefulYears ?? category.years;
   const salvage = input.salvage ?? defaultSalvage(input.cost, usefulYears);
   if (salvage >= input.cost) throw new AppError(422, "殘值不得大於等於取得成本");
@@ -108,7 +108,7 @@ export async function listAssets(db: Db) {
  */
 export async function depreciationSchedule(db: Db, year: number) {
   if (!Number.isInteger(year) || year < 1900 || year > 2999) {
-    throw new AppError(400, `year 須為四位數西元年（收到「${year}」）`);
+    throw new AppError(400, "year 須為四位數西元年（收到「{raw}」）", { raw: year });
   }
   const yearEnd = `${year}-12-31`;
   const assets = await db.select().from(schema.fixedAssets).where(isNull(schema.fixedAssets.voidedAt));
@@ -186,12 +186,13 @@ export interface AssetPatch {
 export async function updateAsset(db: Db, assetId: number, patch: AssetPatch) {
   return db.transaction(async (tx) => {
     const [asset] = await tx.select().from(schema.fixedAssets).where(eq(schema.fixedAssets.id, assetId)).for("update");
-    if (!asset) throw new AppError(404, `資產不存在: ${assetId}`);
+    if (!asset) throw new AppError(404, "資產不存在: {id}", { id: assetId });
     if (asset.voidedAt) {
-      throw new AppError(
-        409,
-        `資產 #${assetId} 已於 ${asset.voidedAt.toISOString().slice(0, 10)} 作廢（理由：${asset.voidReason ?? "未記錄"}），不可修改。請重新登錄一筆正確的資產`,
-      );
+      throw new AppError(409, "資產 #{id} 已於 {date} 作廢（理由：{reason}），不可修改。請重新登錄一筆正確的資產", {
+        id: assetId,
+        date: asset.voidedAt.toISOString().slice(0, 10),
+        reason: asset.voidReason ?? "未記錄",
+      });
     }
     const keys = (Object.keys(patch) as (keyof AssetPatch)[]).filter((k) => patch[k] !== undefined);
     if (keys.length === 0) throw new AppError(400, "沒有要修改的欄位（請至少帶一個要改的欄位）");
@@ -212,9 +213,8 @@ export async function updateAsset(db: Db, assetId: number, patch: AssetPatch) {
             : "已處分——處分損益是按登錄資料算的，帳已定案";
         throw new AppError(
           422,
-          `資產 #${assetId}（${asset.name}）${why}。` +
-            `目前只可修改：名稱、備註（這次要改的「${blocked.map((k) => PATCH_FIELD_LABELS[k] ?? k).join("、")}」不在其中）。` +
-            `若登錄確實有誤：要讓資產下帳請走「處分」（價款 0＝報廢），折舊差額請以手工傳票調整`,
+          "資產 #{id}（{name}）{why}。目前只可修改：名稱、備註（這次要改的「{fields}」不在其中）。若登錄確實有誤：要讓資產下帳請走「處分」（價款 0＝報廢），折舊差額請以手工傳票調整",
+          { id: assetId, name: asset.name, why, fields: blocked.map((k) => PATCH_FIELD_LABELS[k] ?? k).join("、") },
         );
       }
     }
@@ -225,7 +225,7 @@ export async function updateAsset(db: Db, assetId: number, patch: AssetPatch) {
     if (!restricted) {
       if (patch.category !== undefined) {
         const category = CATEGORY_BY_KEY.get(patch.category);
-        if (!category) throw new AppError(422, `資產類別不存在: ${patch.category}`);
+        if (!category) throw new AppError(422, "資產類別不存在: {category}", { category: patch.category });
         set["category"] = category.key;
         set["assetCode"] = category.assetCode;
         set["accumCode"] = category.accumCode;
@@ -239,7 +239,8 @@ export async function updateAsset(db: Db, assetId: number, patch: AssetPatch) {
       if (salvage >= cost) {
         throw new AppError(
           422,
-          `殘值（${salvage}）不得大於等於取得成本（${cost}）——若剛改了成本，請同時帶上正確的殘值`,
+          "殘值（{salvage}）不得大於等於取得成本（{cost}）——若剛改了成本，請同時帶上正確的殘值",
+          { salvage, cost },
         );
       }
     }
@@ -382,25 +383,26 @@ function invoiceReminder(netProceeds: number, tax: number): string {
  */
 async function computeDisposalPlan(tx: Db, assetId: number, input: DisposalInput): Promise<DisposalPlan> {
   const [asset] = await tx.select().from(schema.fixedAssets).where(eq(schema.fixedAssets.id, assetId)).for("update");
-  if (!asset) throw new AppError(404, `資產不存在: ${assetId}`);
+  if (!asset) throw new AppError(404, "資產不存在: {id}", { id: assetId });
   if (asset.voidedAt) {
-    throw new AppError(
-      409,
-      `資產 #${assetId} 已於 ${asset.voidedAt.toISOString().slice(0, 10)} 作廢（理由：${asset.voidReason ?? "未記錄"}），沒有可處分的帳面`,
-    );
+    throw new AppError(409, "資產 #{id} 已於 {date} 作廢（理由：{reason}），沒有可處分的帳面", {
+      id: assetId,
+      date: asset.voidedAt.toISOString().slice(0, 10),
+      reason: asset.voidReason ?? "未記錄",
+    });
   }
   if (asset.status === "disposed") throw new AppError(409, "資產已處分");
   // R2：年份打錯的未來處分日當場擋下（過去日期不擋，關帳鎖另行把關）
   assertNotFarFuture(input.date, "處分日期");
   await assertPeriodOpen(tx, input.date);
   if (input.date < asset.startDate) {
-    throw new AppError(422, `處分日 ${input.date} 早於啟用日 ${asset.startDate}——資產不可能在啟用前被處分，請檢查日期`);
+    throw new AppError(422, "處分日 {date} 早於啟用日 {startDate}——資產不可能在啟用前被處分，請檢查日期", { date: input.date, startDate: asset.startDate });
   }
 
   // (a) 成本未入帳先擋：登錄刻意不拋轉取得傳票（檔頭），處分卻要貸記整筆成本——
   // 沒補取得傳票就處分，資產科目會被打成負數而 balanced 照樣為 true，沒有任何報表會叫
   const [assetAccount] = await tx.select().from(schema.accounts).where(eq(schema.accounts.code, asset.assetCode));
-  if (!assetAccount) throw new AppError(500, `科目未初始化: ${asset.assetCode}（請重跑 migrate/seed）`);
+  if (!assetAccount) throw new AppError(500, "科目未初始化: {code}（請重跑 migrate/seed）", { code: asset.assetCode });
   const acctLines = await tx
     .select({ debit: schema.journalLines.debit, credit: schema.journalLines.credit })
     .from(schema.journalLines)
@@ -409,9 +411,8 @@ async function computeDisposalPlan(tx: Db, assetId: number, input: DisposalInput
   if (balance < asset.cost) {
     throw new AppError(
       422,
-      `資產「${asset.name}」的取得成本 ${asset.cost} 元尚未入帳：科目 ${asset.assetCode} 目前借餘 ${balance} 元，` +
-        `處分要貸記 ${asset.cost} 元，會把帳面打成負數。登錄刻意不拋轉取得傳票（取得走進貨單或手工傳票）——` +
-        `請先到「傳票」頁補一張取得分錄（借 ${asset.assetCode} ${asset.cost}／貸 銀行存款或其他應付款），再處分`,
+      "資產「{name}」的取得成本 {cost} 元尚未入帳：科目 {code} 目前借餘 {balance} 元，處分要貸記 {cost} 元，會把帳面打成負數。登錄刻意不拋轉取得傳票（取得走進貨單或手工傳票）——請先到「傳票」頁補一張取得分錄（借 {code} {cost}／貸 銀行存款或其他應付款），再處分",
+      { name: asset.name, cost: asset.cost, code: asset.assetCode, balance },
     );
   }
 
@@ -501,13 +502,13 @@ export async function disposeAsset(db: Db, assetId: number, input: DisposalInput
     if (!cashAccount) {
       throw new AppError(
         422,
-        `收款科目須為現金科目（目前可用：${cashAccounts.map((a) => `${a.code} ${a.name}`).join("、") || "無"}）。` +
-          `要新增銀行帳戶科目請到「會計科目」頁建立資產類科目並勾選「現金科目」`,
+        "收款科目須為現金科目（目前可用：{available}）。要新增銀行帳戶科目請到「會計科目」頁建立資產類科目並勾選「現金科目」",
+        { available: cashAccounts.map((a) => `${a.code} ${a.name}`).join("、") || "無" },
       );
     }
     // 與手工傳票／收付款單同一條規則：停用的科目不得再過帳
     if (!cashAccount.active) {
-      throw new AppError(400, `科目已停用，不可再過帳: ${cashAccount.code} ${cashAccount.name}`);
+      throw new AppError(400, "科目已停用，不可再過帳: {code} {name}", { code: cashAccount.code, name: cashAccount.name });
     }
 
     const codes = await accountIdByCode(tx, [

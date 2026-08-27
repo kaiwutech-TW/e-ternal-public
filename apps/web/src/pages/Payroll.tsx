@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.ts";
 import { useFetch } from "../hooks.ts";
+import { useT } from "../i18n.ts";
 import type { Employee } from "../types.ts";
 import { DAY_TYPE_LABELS, fmtMinutes } from "./hr-shared.ts";
 
@@ -70,6 +71,7 @@ const nt = (n: number) => n.toLocaleString("zh-TW");
 
 /** 薪資（0041）：薪資檔（歷次）、加班費率、發薪作業。所有法定數字使用者自填，系統只做算術 */
 export function Payroll() {
+  const t = useT();
   const employees = useFetch<Employee[]>("/employees");
   const salaries = useFetch<SalaryRow[]>("/employee-salaries");
   const rates = useFetch<RateRow[]>("/overtime-rates");
@@ -98,7 +100,7 @@ export function Payroll() {
       {ok && <div className="ok">{ok}</div>}
 
       <div className="card">
-        <h3>員工薪資檔（歷次紀錄）</h3>
+        <h3>{t("員工薪資檔（歷次紀錄）")}</h3>
         <form
           className="inline"
           onSubmit={(e) => {
@@ -125,50 +127,50 @@ export function Payroll() {
               });
               form.reset();
               salaries.reload();
-            }, "薪資列已新增（調薪＝再新增一列，舊列保留）");
+            }, t("薪資列已新增（調薪＝再新增一列，舊列保留）"));
           }}
         >
           <label className="field">
-            員工
+            {t("員工")}
             <select name="employeeId" required defaultValue="">
-              <option value="" disabled>— 選員工 —</option>
+              <option value="" disabled>{t("— 選員工 —")}</option>
               {employees.data?.filter((e) => e.active).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </label>
-          <label className="field">生效日<input name="validFrom" type="date" required /></label>
+          <label className="field">{t("生效日")}<input name="validFrom" type="date" required /></label>
           <label className="field">
-            計薪
+            {t("計薪")}
             <select name="payType" defaultValue="monthly">
-              <option value="monthly">月薪</option>
-              <option value="hourly">時薪</option>
+              <option value="monthly">{t("月薪")}</option>
+              <option value="hourly">{t("時薪")}</option>
             </select>
           </label>
-          <label className="field">本薪（元；時薪制填時薪）<input name="baseAmount" type="number" min={0} required style={{ width: 110 }} /></label>
-          <label className="field">時薪換算除數（月薪制才需要）<input name="hourlyDivisor" type="number" min={1} placeholder="未填＝不算加班與扣款" style={{ width: 170 }} /></label>
-          <label className="field">伙食津貼（元/月，選填）<input name="mealAllowance" type="number" min={0} defaultValue={0} style={{ width: 120 }} /></label>
+          <label className="field">{t("本薪（元；時薪制填時薪）")}<input name="baseAmount" type="number" min={0} required style={{ width: 110 }} /></label>
+          <label className="field">{t("時薪換算除數（月薪制才需要）")}<input name="hourlyDivisor" type="number" min={1} placeholder={t("未填＝不算加班與扣款")} style={{ width: 170 }} /></label>
+          <label className="field">{t("伙食津貼（元/月，選填）")}<input name="mealAllowance" type="number" min={0} defaultValue={0} style={{ width: 120 }} /></label>
           <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <input name="mealAllowanceInBase" type="checkbox" />計入時薪基底
+            <input name="mealAllowanceInBase" type="checkbox" />{t("計入時薪基底")}
           </label>
-          <label className="field">勞保（員工）<input name="laborInsEmployee" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
-          <label className="field">勞保（雇主）<input name="laborInsEmployer" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
-          <label className="field">健保（員工）<input name="healthInsEmployee" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
-          <label className="field">健保（雇主）<input name="healthInsEmployer" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
-          <label className="field">勞退提繳（雇主）<input name="pensionEmployer" type="number" min={0} defaultValue={0} style={{ width: 110 }} /></label>
-          <label className="field" style={{ minWidth: 200 }}>依據來源（投保級距表版本等）<input name="sourceNote" placeholder="你查證的依據" /></label>
-          <label className="field">備註<input name="note" /></label>
-          <button className="primary">新增薪資列</button>
+          <label className="field">{t("勞保（員工）")}<input name="laborInsEmployee" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
+          <label className="field">{t("勞保（雇主）")}<input name="laborInsEmployer" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
+          <label className="field">{t("健保（員工）")}<input name="healthInsEmployee" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
+          <label className="field">{t("健保（雇主）")}<input name="healthInsEmployer" type="number" min={0} defaultValue={0} style={{ width: 90 }} /></label>
+          <label className="field">{t("勞退提繳（雇主）")}<input name="pensionEmployer" type="number" min={0} defaultValue={0} style={{ width: 110 }} /></label>
+          <label className="field" style={{ minWidth: 200 }}>{t("依據來源（投保級距表版本等）")}<input name="sourceNote" placeholder={t("你查證的依據")} /></label>
+          <label className="field">{t("備註")}<input name="note" /></label>
+          <button className="primary">{t("新增薪資列")}</button>
         </form>
         {salaries.data && salaries.data.length > 0 && (
           <table style={{ marginTop: 12 }}>
-            <thead><tr><th>員工</th><th>生效日</th><th>計薪</th><th>本薪</th><th>伙食津貼</th><th>除數</th><th>勞保（員/雇）</th><th>健保（員/雇）</th><th>勞退</th><th>依據</th></tr></thead>
+            <thead><tr><th>{t("員工")}</th><th>{t("生效日")}</th><th>{t("計薪")}</th><th>{t("本薪")}</th><th>{t("伙食津貼")}</th><th>{t("除數")}</th><th>{t("勞保（員/雇）")}</th><th>{t("健保（員/雇）")}</th><th>{t("勞退")}</th><th>{t("依據")}</th></tr></thead>
             <tbody>
               {salaries.data.map((s) => (
                 <tr key={s.id}>
                   <td>{s.employeeName}</td>
                   <td>{s.validFrom}</td>
-                  <td>{s.payType === "monthly" ? "月薪" : "時薪"}</td>
+                  <td>{s.payType === "monthly" ? t("月薪") : t("時薪")}</td>
                   <td style={{ textAlign: "right" }}>{nt(s.baseAmount)}</td>
-                  <td style={{ textAlign: "right" }}>{s.mealAllowance ? `${nt(s.mealAllowance)}${s.mealAllowanceInBase ? "（入基底）" : ""}` : "—"}</td>
+                  <td style={{ textAlign: "right" }}>{s.mealAllowance ? `${nt(s.mealAllowance)}${s.mealAllowanceInBase ? t("（入基底）") : ""}` : "—"}</td>
                   <td>{s.hourlyDivisor ?? "—"}</td>
                   <td>{nt(s.laborInsEmployee)}／{nt(s.laborInsEmployer)}</td>
                   <td>{nt(s.healthInsEmployee)}／{nt(s.healthInsEmployer)}</td>
@@ -180,13 +182,13 @@ export function Payroll() {
           </table>
         )}
         <p style={{ fontSize: "0.8125rem", color: "var(--text-3)" }}>
-          薪資檔是歷次紀錄：調薪新增一列（舊列不動），算薪取「當月月底仍生效的那一列」。
-          勞健保是每人每月定額——請照投保級距表自行查填，系統不內建級距也不驗算。
+          {t("薪資檔是歷次紀錄：調薪新增一列（舊列不動），算薪取「當月月底仍生效的那一列」。")}{" "}
+          {t("勞健保是每人每月定額——請照投保級距表自行查填，系統不內建級距也不驗算。")}
         </p>
       </div>
 
       <div className="card">
-        <h3>加班費率（倍率自填）</h3>
+        <h3>{t("加班費率（倍率自填）")}</h3>
         <form
           className="inline"
           onSubmit={(e) => {
@@ -208,44 +210,44 @@ export function Payroll() {
           }}
         >
           <label className="field">
-            日型
+            {t("日型")}
             <select name="dayType" required defaultValue="">
               <option value="" disabled>—</option>
-              {Object.entries(DAY_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {Object.entries(DAY_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
             </select>
           </label>
-          <label className="field">加班第幾小時起<input name="fromHours" type="number" min={0} step={0.5} required style={{ width: 120 }} /></label>
-          <label className="field">倍率（例 1.34）<input name="multiplier" type="number" min={0.01} step={0.01} required style={{ width: 110 }} /></label>
-          <label className="field">以固定時數計（小時，選填）<input name="fixedHours" type="number" min={0.5} step={0.5} placeholder="例假日「做 6 給 8」填 8" style={{ width: 170 }} /></label>
-          <label className="field" style={{ minWidth: 200 }}>依據來源<input name="sourceNote" placeholder="你查證的條號" /></label>
-          <button className="primary">新增費率</button>
+          <label className="field">{t("加班第幾小時起")}<input name="fromHours" type="number" min={0} step={0.5} required style={{ width: 120 }} /></label>
+          <label className="field">{t("倍率（例 1.34）")}<input name="multiplier" type="number" min={0.01} step={0.01} required style={{ width: 110 }} /></label>
+          <label className="field">{t("以固定時數計（小時，選填）")}<input name="fixedHours" type="number" min={0.5} step={0.5} placeholder={t("例假日「做 6 給 8」填 8")} style={{ width: 170 }} /></label>
+          <label className="field" style={{ minWidth: 200 }}>{t("依據來源")}<input name="sourceNote" placeholder={t("你查證的條號")} /></label>
+          <button className="primary">{t("新增費率")}</button>
         </form>
         {rates.data && rates.data.length > 0 && (
           <table style={{ marginTop: 12 }}>
-            <thead><tr><th>日型</th><th>起算</th><th>倍率</th><th>計法</th><th>依據</th><th></th></tr></thead>
+            <thead><tr><th>{t("日型")}</th><th>{t("起算")}</th><th>{t("倍率")}</th><th>{t("計法")}</th><th>{t("依據")}</th><th></th></tr></thead>
             <tbody>
               {rates.data.map((r) => (
                 <tr key={r.id}>
-                  <td>{DAY_TYPE_LABELS[r.dayType] ?? r.dayType}</td>
-                  <td>第 {fmtMinutes(r.fromMinutes)} 起</td>
-                  <td>{(r.multiplierBp / 10000).toFixed(2)} 倍</td>
-                  <td>{r.fixedMinutes ? `以固定 ${fmtMinutes(r.fixedMinutes)} 計` : "實際時數"}</td>
+                  <td>{DAY_TYPE_LABELS[r.dayType] ? t(DAY_TYPE_LABELS[r.dayType]!) : r.dayType}</td>
+                  <td>{t("第 {h} 起", { h: fmtMinutes(r.fromMinutes) })}</td>
+                  <td>{t("{x} 倍", { x: (r.multiplierBp / 10000).toFixed(2) })}</td>
+                  <td>{r.fixedMinutes ? t("以固定 {h} 計", { h: fmtMinutes(r.fixedMinutes) }) : t("實際時數")}</td>
                   <td style={{ color: "var(--text-3)" }}>{r.sourceNote || "—"}</td>
-                  <td><button className="small" onClick={() => void act(async () => { await api.delete(`/overtime-rates/${r.id}`); rates.reload(); })}>刪除</button></td>
+                  <td><button className="small" onClick={() => void act(async () => { await api.delete(`/overtime-rates/${r.id}`); rates.reload(); })}>{t("刪除")}</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
         <p style={{ fontSize: "0.8125rem", color: "var(--text-3)" }}>
-          每個日型可設多段（前 2 小時一個倍率、之後另一個倍率＝兩列）；級距**按每張加班單**（＝按日）套用。
-          「以固定時數計」給例假日「做 6 給 8」這種形狀：時數一進該級距就以固定時數計酬。
-          倍率是勞基法數字，系統不預填——沒設費率的日型加班費算 0，發薪作業會明講。已定案的薪資單不受之後改費率影響。
+          {t("每個日型可設多段（前 2 小時一個倍率、之後另一個倍率＝兩列）；級距**按每張加班單**（＝按日）套用。")}{" "}
+          {t("「以固定時數計」給例假日「做 6 給 8」這種形狀：時數一進該級距就以固定時數計酬。")}{" "}
+          {t("倍率是勞基法數字，系統不預填——沒設費率的日型加班費算 0，發薪作業會明講。已定案的薪資單不受之後改費率影響。")}
         </p>
       </div>
 
       <div className="card">
-        <h3>發薪作業</h3>
+        <h3>{t("發薪作業")}</h3>
         <form
           className="inline"
           onSubmit={(e) => {
@@ -255,22 +257,22 @@ export function Payroll() {
               const created = await api.post<RunDetail>("/payroll-runs", { month: String(f.get("month")) });
               runs.reload();
               setRun(created);
-            }, "已建立草稿——確認數字後再定案");
+            }, t("已建立草稿——確認數字後再定案"));
           }}
         >
-          <label className="field">月份<input name="month" type="month" required defaultValue={new Date().toISOString().slice(0, 7)} /></label>
-          <button className="primary">建立發薪作業（草稿）</button>
+          <label className="field">{t("月份")}<input name="month" type="month" required defaultValue={new Date().toISOString().slice(0, 7)} /></label>
+          <button className="primary">{t("建立發薪作業（草稿）")}</button>
         </form>
         {runs.data && runs.data.length > 0 && (
           <table style={{ marginTop: 12 }}>
-            <thead><tr><th>月份</th><th>狀態</th><th>傳票</th><th></th></tr></thead>
+            <thead><tr><th>{t("月份")}</th><th>{t("狀態")}</th><th>{t("傳票")}</th><th></th></tr></thead>
             <tbody>
               {runs.data.map((r) => (
                 <tr key={r.id}>
                   <td>{r.month}</td>
-                  <td><span className={`badge ${r.status === "finalized" ? "issued" : "draft"}`}>{r.status === "finalized" ? "已定案" : "草稿"}</span></td>
+                  <td><span className={`badge ${r.status === "finalized" ? "issued" : "draft"}`}>{r.status === "finalized" ? t("已定案") : t("草稿")}</span></td>
                   <td>{r.journalEntryId ? `#${r.journalEntryId}` : "—"}</td>
-                  <td><button className="small" onClick={() => openRun(r.id)}>明細</button></td>
+                  <td><button className="small" onClick={() => openRun(r.id)}>{t("明細")}</button></td>
                 </tr>
               ))}
             </tbody>
@@ -281,15 +283,15 @@ export function Payroll() {
       {run && (
         <div className="card">
           <h3>
-            {run.month} 明細{" "}
+            {t("{month} 明細", { month: run.month })}{" "}
             <span className={`badge ${run.status === "finalized" ? "issued" : "draft"}`}>
-              {run.status === "finalized" ? "已定案" : "草稿"}
+              {run.status === "finalized" ? t("已定案") : t("草稿")}
             </span>
           </h3>
           {run.status === "draft" && (
             <p style={{ marginBottom: 8 }}>
-              <button className="small" onClick={() => void act(async () => setRun(await api.post<RunDetail>(`/payroll-runs/${run.id}/recalc`, {})), "已重算（手動調整項保留）")}>
-                重算（出勤或參數有更新時）
+              <button className="small" onClick={() => void act(async () => setRun(await api.post<RunDetail>(`/payroll-runs/${run.id}/recalc`, {})), t("已重算（手動調整項保留）"))}>
+                {t("重算（出勤或參數有更新時）")}
               </button>{" "}
               <button
                 className="small primary"
@@ -301,19 +303,19 @@ export function Payroll() {
                     // 出路只能寫程式真的做得到的：收付款單的對象必須是供應商、借方是應付帳款，
                     // 沖不了 2202 應付薪資（services/ledger.ts）——照那條路做會讓 2202 永遠掛著、
                     // 應付帳款被壓成負數。實際發薪走手工傳票
-                    setOk(`已定案並過帳（傳票 #${r.journalEntryId}）：月底計提，實發掛 2202 應付薪資。發薪當天到「傳票」開一張借 2202、貸 銀行存款的手工傳票沖掉它`);
+                    setOk(t("已定案並過帳（傳票 #{id}）：月底計提，實發掛 2202 應付薪資。發薪當天到「傳票」開一張借 2202、貸 銀行存款的手工傳票沖掉它", { id: r.journalEntryId }));
                   })
                 }
               >
-                定案並過帳
+                {t("定案並過帳")}
               </button>
             </p>
           )}
           <table>
             <thead>
               <tr>
-                <th>員工</th><th>本薪</th><th>伙食津貼</th><th>加班費</th><th>請假扣</th><th>遲到早退扣</th><th>缺勤扣</th><th>調整＋</th><th>調整−</th>
-                <th>勞健保（員工）</th><th>實發</th><th>備註</th>{run.status === "draft" && <th></th>}
+                <th>{t("員工")}</th><th>{t("本薪")}</th><th>{t("伙食津貼")}</th><th>{t("加班費")}</th><th>{t("請假扣")}</th><th>{t("遲到早退扣")}</th><th>{t("缺勤扣")}</th><th>{t("調整＋")}</th><th>{t("調整−")}</th>
+                <th>{t("勞健保（員工）")}</th><th>{t("實發")}</th><th>{t("備註")}</th>{run.status === "draft" && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -346,7 +348,7 @@ export function Payroll() {
                       <td style={{ textAlign: "right" }}><strong>{nt(i.netPay)}</strong></td>
                       <td>
                         {run.status === "draft" ? (
-                          <input style={{ width: 120 }} value={e.memo} placeholder="調整原因"
+                          <input style={{ width: 120 }} value={e.memo} placeholder={t("調整原因")}
                             onChange={(ev) => setEdits({ ...edits, [i.id]: { ...e, memo: ev.target.value } })} />
                         ) : (i.memo || "—")}
                       </td>
@@ -362,10 +364,10 @@ export function Payroll() {
                                   memo: e.memo,
                                 });
                                 openRun(run.id);
-                              }, "已調整")
+                              }, t("已調整"))
                             }
                           >
-                            儲存
+                            {t("儲存")}
                           </button>
                         </td>
                       )}
@@ -383,8 +385,8 @@ export function Payroll() {
             </tbody>
           </table>
           <p style={{ fontSize: "0.8125rem", color: "var(--text-3)" }}>
-            扣繳稅款本批不計算（員工薪資的扣繳稅額表未內建）：要代扣請用「調整−」欄自行填入並留備註。
-            定案後這份明細就是快照——之後改費率、補打卡都不會回頭改它。
+            {t("扣繳稅款本批不計算（員工薪資的扣繳稅額表未內建）：要代扣請用「調整−」欄自行填入並留備註。")}{" "}
+            {t("定案後這份明細就是快照——之後改費率、補打卡都不會回頭改它。")}
           </p>
         </div>
       )}

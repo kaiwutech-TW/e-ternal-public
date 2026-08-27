@@ -27,8 +27,8 @@ export async function createPurchaseOrder(db: Db, input: PurchaseOrderInput, cre
     // R2：年份打錯的未來採購單當場擋下（過去日期不擋——補登歷史採購是正常作業）
     assertNotFarFuture(input.orderDate, "採購單日期");
     const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, input.partnerId));
-    if (!partner) throw new AppError(404, `交易對象不存在: ${input.partnerId}`);
-    if (!partner.isSupplier) throw new AppError(422, `非供應商: ${partner.name}`);
+    if (!partner) throw new AppError(404, "交易對象不存在: {id}", { id: input.partnerId });
+    if (!partner.isSupplier) throw new AppError(422, "非供應商: {name}", { name: partner.name });
 
     // 採購單的稅額與報價單一樣是**估算**：真正入帳的是收貨當日由 createPurchase 重算的那一份。
     // 仍依開單日解析費率，否則向廠商確認的總額會與收貨時的帳不一致
@@ -140,13 +140,14 @@ export async function receivePurchaseOrder(
 ) {
   return db.transaction(async (tx) => {
     const [po] = await tx.select().from(schema.purchaseOrders).where(eq(schema.purchaseOrders.id, poId));
-    if (!po) throw new AppError(404, `採購單不存在: ${poId}`);
+    if (!po) throw new AppError(404, "採購單不存在: {id}", { id: poId });
     if (po.status === "canceled" || po.status === "closed") {
       throw new AppError(
         409,
         po.status === "closed"
-          ? `採購單 #${poId} 已結案（結案＝到此為止，剩餘量不再收貨），不可收貨。要繼續進貨請開一張新採購單`
-          : `採購單 #${poId} 已取消（取消＝這張單從沒發生），不可收貨。要進貨請開一張新採購單`,
+          ? "採購單 #{id} 已結案（結案＝到此為止，剩餘量不再收貨），不可收貨。要繼續進貨請開一張新採購單"
+          : "採購單 #{id} 已取消（取消＝這張單從沒發生），不可收貨。要進貨請開一張新採購單",
+        { id: poId },
       );
     }
     const poLines = await tx
@@ -164,11 +165,11 @@ export async function receivePurchaseOrder(
 
     for (const r of receiveLines) {
       const line = byId.get(r.poLineId);
-      if (!line) throw new AppError(404, `採購單明細不存在: ${r.poLineId}`);
+      if (!line) throw new AppError(404, "採購單明細不存在: {id}", { id: r.poLineId });
       const remaining = Number(line.qty) - Number(line.receivedQty);
-      if (r.qty <= 0) throw new AppError(422, `收貨量必須大於 0（明細 ${r.poLineId}）`);
+      if (r.qty <= 0) throw new AppError(422, "收貨量必須大於 0（明細 {id}）", { id: r.poLineId });
       if (r.qty > remaining) {
-        throw new AppError(422, `收貨量超過剩餘量: 明細 ${r.poLineId} 剩 ${remaining}，欲收 ${r.qty}`);
+        throw new AppError(422, "收貨量超過剩餘量: 明細 {id} 剩 {remaining}，欲收 {qty}", { id: r.poLineId, remaining, qty: r.qty });
       }
     }
 
@@ -230,13 +231,12 @@ export async function receivePurchaseOrder(
 export async function cancelPurchaseOrder(db: Db, poId: number) {
   return db.transaction(async (tx) => {
     const [po] = await tx.select().from(schema.purchaseOrders).where(eq(schema.purchaseOrders.id, poId));
-    if (!po) throw new AppError(404, `採購單不存在: ${poId}`);
+    if (!po) throw new AppError(404, "採購單不存在: {id}", { id: poId });
     if (po.status !== "open") {
       throw new AppError(
         409,
-        `僅未收貨的採購單可取消（取消＝這張單從沒發生；目前 ${po.status}）。` +
-          `已有收貨的採購單請改用「結案」（結案＝到此為止：已收貨的進貨單與憑證留著，剩餘量不再收）；` +
-          `收錯的貨請先到進貨頁作廢該張進貨單`,
+        "僅未收貨的採購單可取消（取消＝這張單從沒發生；目前 {status}）。已有收貨的採購單請改用「結案」（結案＝到此為止：已收貨的進貨單與憑證留著，剩餘量不再收）；收錯的貨請先到進貨頁作廢該張進貨單",
+        { status: po.status },
       );
     }
     const [updated] = await tx
@@ -256,17 +256,19 @@ export async function cancelPurchaseOrder(db: Db, poId: number) {
 export async function closePurchaseOrder(db: Db, poId: number, reason: string, closedBy: number) {
   return db.transaction(async (tx) => {
     const [po] = await tx.select().from(schema.purchaseOrders).where(eq(schema.purchaseOrders.id, poId));
-    if (!po) throw new AppError(404, `採購單不存在: ${poId}`);
+    if (!po) throw new AppError(404, "採購單不存在: {id}", { id: poId });
     if (po.status === "closed") {
-      throw new AppError(
-        409,
-        po.closedAt
-          ? `採購單 #${poId} 已於 ${po.closedAt.toISOString().slice(0, 10)} 短交結案（原因：${po.closeReason ?? "未記錄"}），不可再結案`
-          : `採購單 #${poId} 已全數收訖、自動結案，不需再結案`,
-      );
+      if (po.closedAt) {
+        throw new AppError(409, "採購單 #{id} 已於 {date} 短交結案（原因：{reason}），不可再結案", {
+          id: poId,
+          date: po.closedAt.toISOString().slice(0, 10),
+          reason: po.closeReason ?? "未記錄",
+        });
+      }
+      throw new AppError(409, "採購單 #{id} 已全數收訖、自動結案，不需再結案", { id: poId });
     }
     if (po.status === "canceled") {
-      throw new AppError(409, `採購單 #${poId} 已取消（取消＝這張單從沒發生），沒有可結案的內容`);
+      throw new AppError(409, "採購單 #{id} 已取消（取消＝這張單從沒發生），沒有可結案的內容", { id: poId });
     }
     const [updated] = await tx
       .update(schema.purchaseOrders)

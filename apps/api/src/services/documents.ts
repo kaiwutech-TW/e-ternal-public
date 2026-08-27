@@ -62,15 +62,13 @@ export function assertZeroTaxShape(input: ZeroTaxFields): "1" | "2" {
   if (taxType === "3") {
     throw new AppError(
       422,
-      "免稅銷售目前開不了單：免稅（兼營）公司申報營業稅要用 403 申報書，本系統只支援 401（專營應稅）。" +
-        "請以官方申報軟體或洽記帳士處理免稅銷售，勿以本系統的應稅／零稅率單據代替",
+      "免稅銷售目前開不了單：免稅（兼營）公司申報營業稅要用 403 申報書，本系統只支援 401（專營應稅）。請以官方申報軟體或洽記帳士處理免稅銷售，勿以本系統的應稅／零稅率單據代替",
     );
   }
   if (taxType === "2" && input.zeroTaxViaCustoms === undefined) {
     throw new AppError(
       422,
-      "零稅率單據必須指明「經海關出口」或「非經海關」——兩者在 401 申報書落在不同欄位" +
-        "（經海關＝出口報單；非經海關＝外匯證明等），系統無從替你決定",
+      "零稅率單據必須指明「經海關出口」或「非經海關」——兩者在 401 申報書落在不同欄位（經海關＝出口報單；非經海關＝外匯證明等），系統無從替你決定",
     );
   }
   if (taxType !== "2" && (input.zeroTaxViaCustoms !== undefined || input.zeroTaxCertNo !== undefined)) {
@@ -107,7 +105,7 @@ async function insertEntry(
   await db.insert(schema.journalLines).values(
     lines.map((l) => {
       const accountId = codeToId.get(l.accountCode);
-      if (!accountId) throw new AppError(500, `科目未初始化: ${l.accountCode}`);
+      if (!accountId) throw new AppError(500, "科目未初始化: {accountCode}", { accountCode: l.accountCode });
       return { entryId: entry!.id, accountId, debit: l.debit, credit: l.credit };
     }),
   );
@@ -116,9 +114,9 @@ async function insertEntry(
 
 async function requirePartner(db: Db, id: number, role: "supplier" | "customer") {
   const [partner] = await db.select().from(schema.partners).where(eq(schema.partners.id, id));
-  if (!partner) throw new AppError(404, `交易對象不存在: ${id}`);
-  if (role === "supplier" && !partner.isSupplier) throw new AppError(422, `非供應商: ${partner.name}`);
-  if (role === "customer" && !partner.isCustomer) throw new AppError(422, `非客戶: ${partner.name}`);
+  if (!partner) throw new AppError(404, "交易對象不存在: {id}", { id });
+  if (role === "supplier" && !partner.isSupplier) throw new AppError(422, "非供應商: {name}", { name: partner.name });
+  if (role === "customer" && !partner.isCustomer) throw new AppError(422, "非客戶: {name}", { name: partner.name });
   return partner;
 }
 
@@ -126,7 +124,7 @@ async function requirePartner(db: Db, id: number, role: "supplier" | "customer")
 async function requireProducts(db: Db, ids: number[]) {
   const rows = await db.select().from(schema.products).where(inArray(schema.products.id, ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
-  for (const id of ids) if (!byId.has(id)) throw new AppError(404, `商品不存在: ${id}`);
+  for (const id of ids) if (!byId.has(id)) throw new AppError(404, "商品不存在: {id}", { id });
   return byId;
 }
 
@@ -171,7 +169,7 @@ export async function lockProducts(tx: Db, productIds: number[]): Promise<void> 
       .from(schema.products)
       .where(eq(schema.products.id, id))
       .for("update");
-    if (!row) throw new AppError(404, `商品不存在: ${id}`);
+    if (!row) throw new AppError(404, "商品不存在: {id}", { id });
   }
 }
 
@@ -199,7 +197,7 @@ export async function createPurchase(db: Db, input: PurchaseInput) {
     const dueDate =
       input.dueDate ?? (partner.paymentTermDays != null ? addDays(input.docDate, partner.paymentTermDays) : null);
     if (dueDate && dueDate < input.docDate) {
-      throw new AppError(422, `付款到期日（${dueDate}）不可早於單據日期（${input.docDate}）。留空可依供應商付款條件自動推算`);
+      throw new AppError(422, "付款到期日（{dueDate}）不可早於單據日期（{docDate}）。留空可依供應商付款條件自動推算", { dueDate, docDate: input.docDate });
     }
     // 服務項目不收進貨單：進貨拋轉一律借記存貨科目（purchaseEntryLines），
     // 服務費記成存貨會讓資產負債表虛胖、庫存頁多出「運費 在庫 N 式」的殭屍列。
@@ -209,9 +207,8 @@ export async function createPurchase(db: Db, input: PurchaseInput) {
       if (p.isService) {
         throw new AppError(
           422,
-          `「${p.name}」是服務項目，不入庫存，進貨單收不了它。` +
-            `外包費用（運費、委外服務）請走「費用報銷」或「傳票」頁入帳；` +
-            `付給個人的委外費用請用「扣繳」頁開支出單`,
+          "「{name}」是服務項目，不入庫存，進貨單收不了它。外包費用（運費、委外服務）請走「費用報銷」或「傳票」頁入帳；付給個人的委外費用請用「扣繳」頁開支出單",
+          { name: p.name },
         );
       }
     }
@@ -278,7 +275,7 @@ export async function createSale(db: Db, input: SaleInput) {
     const dueDate =
       input.dueDate ?? (partner.paymentTermDays != null ? addDays(input.docDate, partner.paymentTermDays) : null);
     if (dueDate && dueDate < input.docDate) {
-      throw new AppError(422, `收款到期日（${dueDate}）不可早於單據日期（${input.docDate}）。留空可依客戶付款條件自動推算`);
+      throw new AppError(422, "收款到期日（{dueDate}）不可早於單據日期（{docDate}）。留空可依客戶付款條件自動推算", { dueDate, docDate: input.docDate });
     }
     // 讀 onHand 之前先取商品鎖：不取的話並行的「銷貨」與「進貨退出」會各自讀到「在庫還夠」
     // 而一起把庫存打成負數，之後該商品每一筆銷貨都在 movingAvgUnitCost 炸在無關的單據上
@@ -317,7 +314,7 @@ export async function createSale(db: Db, input: SaleInput) {
       }
       const state = running.get(l.productId) ?? (await onHand(tx, l.productId));
       if (state.qty < l.qty) {
-        throw new AppError(409, `庫存不足: 商品 ${l.productId} 在庫 ${state.qty}，欲售 ${l.qty}`);
+        throw new AppError(409, "庫存不足: 商品 {productId} 在庫 {onHand}，欲售 {qty}", { productId: l.productId, onHand: state.qty, qty: l.qty });
       }
       const unitCost = movingAvgUnitCost(state.qty, state.amount);
       const cost = cogsFor(l.qty, unitCost);
@@ -389,7 +386,7 @@ export async function createSale(db: Db, input: SaleInput) {
  */
 export async function saleDetail(db: Db, id: number) {
   const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, id));
-  if (!sale) throw new AppError(404, `銷貨單不存在: ${id}`);
+  if (!sale) throw new AppError(404, "銷貨單不存在: {id}", { id });
   const [partner] = await db.select().from(schema.partners).where(eq(schema.partners.id, sale.partnerId));
   const lines = await db
     .select({
@@ -431,12 +428,12 @@ export async function saleDetail(db: Db, id: number) {
  */
 export async function updateSaleZeroTaxCert(db: Db, saleId: number, input: { certNo: string }) {
   const [sale] = await db.select().from(schema.sales).where(eq(schema.sales.id, saleId));
-  if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
+  if (!sale) throw new AppError(404, "銷貨單不存在: {saleId}", { saleId });
   if (sale.taxType !== "2") {
-    throw new AppError(422, `銷貨單 ${saleId} 不是零稅率單據（課稅別 ${sale.taxType}），沒有證明文件欄可補登`);
+    throw new AppError(422, "銷貨單 {saleId} 不是零稅率單據（課稅別 {taxType}），沒有證明文件欄可補登", { saleId, taxType: sale.taxType });
   }
   if (sale.voidedAt || sale.reversalEntryId) {
-    throw new AppError(409, `銷貨單 ${saleId} 已作廢／沖銷，不可補登證明文件——如仍有這筆外銷，請重開一張正確的單`);
+    throw new AppError(409, "銷貨單 {saleId} 已作廢／沖銷，不可補登證明文件——如仍有這筆外銷，請重開一張正確的單", { saleId });
   }
   const [updated] = await db
     .update(schema.sales)
@@ -522,9 +519,9 @@ export async function inventoryMovementLedger(
   to?: string | undefined,
 ) {
   const [product] = await db.select().from(schema.products).where(eq(schema.products.id, productId));
-  if (!product) throw new AppError(404, `商品不存在: ${productId}`);
+  if (!product) throw new AppError(404, "商品不存在: {productId}", { productId });
   if (product.isService) {
-    throw new AppError(422, `「${product.name}」是服務項目，不入庫存，沒有異動明細帳`);
+    throw new AppError(422, "「{name}」是服務項目，不入庫存，沒有異動明細帳", { name: product.name });
   }
   const moves = await db
     .select()

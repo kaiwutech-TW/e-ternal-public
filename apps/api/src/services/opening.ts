@@ -43,17 +43,17 @@ export async function createOpeningBalance(db: Db, input: OpeningBalanceInput, u
     if (input.docDate > input.entryDate) {
       throw new AppError(
         422,
-        `原單日期 ${input.docDate} 晚於開帳日 ${input.entryDate}——期初欠款必須在開帳日之前就存在。` +
-          `若這是開帳之後的新交易，請開正式的銷貨單／進貨單，不要走期初導入`,
+        "原單日期 {docDate} 晚於開帳日 {entryDate}——期初欠款必須在開帳日之前就存在。若這是開帳之後的新交易，請開正式的銷貨單／進貨單，不要走期初導入",
+        { docDate: input.docDate, entryDate: input.entryDate },
       );
     }
     const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, input.partnerId));
-    if (!partner) throw new AppError(404, `交易對象不存在: ${input.partnerId}`);
+    if (!partner) throw new AppError(404, "交易對象不存在: {id}", { id: input.partnerId });
     if (input.kind === "receivable" && !partner.isCustomer) {
-      throw new AppError(422, `${partner.name} 不是客戶，不能建期初應收（請先到「客戶與商品」頁勾選為客戶）`);
+      throw new AppError(422, "{name} 不是客戶，不能建期初應收（請先到「客戶與商品」頁勾選為客戶）", { name: partner.name });
     }
     if (input.kind === "payable" && !partner.isSupplier) {
-      throw new AppError(422, `${partner.name} 不是供應商，不能建期初應付（請先到「客戶與商品」頁勾選為供應商）`);
+      throw new AppError(422, "{name} 不是供應商，不能建期初應付（請先到「客戶與商品」頁勾選為供應商）", { name: partner.name });
     }
 
     const accounts = await tx.select().from(schema.accounts);

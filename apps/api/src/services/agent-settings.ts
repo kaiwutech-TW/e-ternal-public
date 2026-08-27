@@ -98,7 +98,7 @@ export async function updateAgentSettings(
     if (!model.trim()) throw new AppError(422, "啟用前請填寫模型名稱（本系統不預設型號——寫死的型號會過期）");
     // ollama 與自架端點通常不需要金鑰
     if (!willHaveKey && provider !== "ollama" && provider !== "custom") {
-      throw new AppError(422, `啟用前請填寫 ${provider} 的 API 金鑰`);
+      throw new AppError(422, "啟用前請填寫 {provider} 的 API 金鑰", { provider });
     }
   }
 

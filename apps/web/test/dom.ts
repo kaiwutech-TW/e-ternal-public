@@ -51,6 +51,16 @@ afterEach(cleanup);
  * 但既有 dom 測試全用中文標籤查元素。這裡把偏好釘在 zh-TW（每則測試前後都釘），
  * 要測英文的測試自己呼叫 setLocale("en")。
  */
+// jsdom 沒有 matchMedia（theme.ts 的 useEffectiveTheme 會呼叫）：裝一個永遠 light 的替身
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    }) as MediaQueryList;
+}
+
 const pinLocale = () => localStorage.setItem("eternal-locale", "zh-TW");
 pinLocale();
 afterEach(() => { localStorage.clear(); pinLocale(); });

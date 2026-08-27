@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import { api } from "../api.ts";
 import { useAuth } from "../auth.ts";
+import { useT } from "../i18n.ts";
 import { fmt, useFetch, useListFetch } from "../hooks.ts";
 import { EmptyState, ListFilterBar, TaxNotes, pickTaxNotes } from "../ui.tsx";
 import type { Account, ApAging, DocRow, Partner, Product, PurchaseOrderRow, ReturnRow } from "../types.ts";
@@ -35,6 +36,7 @@ const PO_STATUS: Record<PurchaseOrderRow["status"], string> = {
 };
 
 export function Purchases() {
+  const t = useT();
   // 作廢限財務／管理者（auth.ts RULES）：採購角色不顯示按鈕——顯示一個按了必 403 的鍵是誘導
   const canVoid = ["admin", "finance"].includes(useAuth().role);
   const partners = useFetch<Partner[]>("/partners");
@@ -110,7 +112,7 @@ export function Purchases() {
           };
         })
         .filter((l) => l.qty > 0);
-      if (!lines.length) throw new Error("收貨量全為 0");
+      if (!lines.length) throw new Error(t("收貨量全為 0"));
       const res = await api.post(`/purchase-orders/${po.id}/receive`, { docDate: receiveDate, lines });
       // 收貨價覆寫與費率警告走同一條 taxNotes 通道：改了價要當場看得到入帳依據
       setTaxNotes(pickTaxNotes(res));
@@ -124,9 +126,7 @@ export function Purchases() {
       .map((l) => `${l.productName} ${l.remainingQty}`)
       .join("、");
     const reason = window.prompt(
-      `結案採購單 #${po.id}：請輸入結案原因（例如：廠商斷貨、需求取消）。\n` +
-        `結案＝到此為止：已收貨的單據全部留著，剩餘（${remaining || "無"}）不再收貨。\n` +
-        `這張單從沒發生請改用「取消採購單」（僅限完全未收貨）。`,
+      t("結案採購單 #{id}：請輸入結案原因（例如：廠商斷貨、需求取消）。\n結案＝到此為止：已收貨的單據全部留著，剩餘（{remaining}）不再收貨。\n這張單從沒發生請改用「取消採購單」（僅限完全未收貨）。", { id: po.id, remaining: remaining || t("無") }),
     );
     if (reason === null) return;
     void act(() => api.post(`/purchase-orders/${po.id}/close`, { reason: reason.trim() }));
@@ -135,7 +135,7 @@ export function Purchases() {
   const registerInvoice = async (id: number) => {
     const m = /^([A-Z]{2})(\d{8})$/.exec(invInput.trim().toUpperCase());
     if (!m) {
-      setError("格式須為 2 字母＋8 數字，例：AB12345678");
+      setError(t("格式須為 2 字母＋8 數字，例：AB12345678"));
       return;
     }
     try {
@@ -158,8 +158,7 @@ export function Purchases() {
   /** 作廢進貨單（B4）：反向傳票沖平、庫存以原入庫成本沖出；貨已賣出或已有退出單時伺服端會 409 指路 */
   const voidPurchase = async (d: DocRow) => {
     const reason = window.prompt(
-      `作廢進貨單 #${d.id}（${fmt(d.total)} 元）：請輸入作廢理由。\n` +
-        "庫存會沖出原入庫量（在庫不足會被擋下）、傳票以反向分錄沖平；單子打錯請作廢後重開一張。",
+      t("作廢進貨單 #{id}（{amount} 元）：請輸入作廢理由。\n庫存會沖出原入庫量（在庫不足會被擋下）、傳票以反向分錄沖平；單子打錯請作廢後重開一張。", { id: d.id, amount: fmt(d.total) }),
     );
     if (reason === null) return;
     try {
@@ -175,10 +174,9 @@ export function Purchases() {
 
   /** 作廢退出／折讓單（0030）：理由必填；退出的貨按原成本補回、折讓的存貨帳面回復 */
   const voidReturn = async (r: ReturnRow) => {
-    const label = r.kind === "return" ? "退出單" : "折讓單";
+    const label = r.kind === "return" ? t("退出單") : t("折讓單");
     const reason = window.prompt(
-      `作廢${label} #${r.id}（${fmt(r.total)} 元）：請輸入作廢理由。\n` +
-        "沖出過的庫存會按原成本補回、傳票以反向分錄沖平；單子打錯請作廢後重開一張正確的。",
+      t("作廢{label} #{id}（{amount} 元）：請輸入作廢理由。\n沖出過的庫存會按原成本補回、傳票以反向分錄沖平；單子打錯請作廢後重開一張正確的。", { label, id: r.id, amount: fmt(r.total) }),
     );
     if (reason === null) return;
     try {
@@ -206,18 +204,18 @@ export function Purchases() {
       <TaxNotes notes={taxNotes} />
 
       <div className="card">
-        <h3>新增採購單（先下單追蹤，到貨再收貨轉進貨）</h3>
+        <h3>{t("新增採購單（先下單追蹤，到貨再收貨轉進貨）")}</h3>
         <LinesForm
-          title="建立採購單"
-          dateLabel="採購日"
-          partnerLabel="供應商"
+          title={t("建立採購單")}
+          dateLabel={t("採購日")}
+          partnerLabel={t("供應商")}
           partners={(partners.data ?? []).filter((p) => p.isSupplier)}
           products={products.data ?? []}
-          expectedDateLabel="預計到貨日"
+          expectedDateLabel={t("預計到貨日")}
           onSubmit={async ({ partnerId, date, memo, expectedDate, lines }) => {
             try {
-              if (!partnerId) throw new Error("請選供應商");
-              if (!lines.length) throw new Error("至少一筆有效明細");
+              if (!partnerId) throw new Error(t("請選供應商"));
+              if (!lines.length) throw new Error(t("至少一筆有效明細"));
               setTaxNotes(pickTaxNotes(await api.post("/purchase-orders", { partnerId, orderDate: date, memo: memo || undefined, expectedDate, lines })));
               setError(null);
               pos.reload();
@@ -229,17 +227,17 @@ export function Purchases() {
       </div>
 
       <div className="card">
-        <h3>採購單（收貨會開進貨單並拋轉庫存/傳票）</h3>
+        <h3>{t("採購單（收貨會開進貨單並拋轉庫存/傳票）")}</h3>
         <ListFilterBar
           partners={partners.data?.filter((p) => p.isSupplier) ?? []}
-          partnerLabel="供應商"
+          partnerLabel={t("供應商")}
           onApply={setPoFilterQ}
           total={pos.total}
           shown={pos.data?.length ?? 0}
         />
         <table>
           <thead>
-            <tr><th>單號</th><th>日期</th><th>預計到貨</th><th>供應商</th><th>到貨進度</th><th className="num">總額（含稅）</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("單號")}</th><th>{t("日期")}</th><th>{t("預計到貨")}</th><th>{t("供應商")}</th><th>{t("到貨進度")}</th><th className="num">{t("總額（含稅）")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {pos.data?.map((po) => {
@@ -253,7 +251,7 @@ export function Purchases() {
                 <td>#{po.id}</td>
                 <td>{po.orderDate}</td>
                 <td style={overdue ? { color: "var(--red)", fontWeight: 600 } : undefined}>
-                  {po.expectedDate ?? "—"}{overdue && "（逾期）"}
+                  {po.expectedDate ?? "—"}{overdue && t("（逾期）")}
                 </td>
                 <td>{po.partnerName}</td>
                 <td>
@@ -262,7 +260,7 @@ export function Purchases() {
                       {l.productName}：{Number(l.receivedQty)}/{Number(l.qty)}
                       {receivingId === po.id && l.remainingQty > 0 && (
                         <>
-                          {" 收 "}
+                          {" "}{t("收")}{" "}
                           <input
                             type="number"
                             min={0}
@@ -271,13 +269,13 @@ export function Purchases() {
                             value={receiveQty[l.id] ?? 0}
                             onChange={(e) => setReceiveQty((m) => ({ ...m, [l.id]: Number(e.target.value) }))}
                           />
-                          {" 單價 "}
+                          {" "}{t("單價")}{" "}
                           <input
                             type="number"
                             min={0}
                             step="0.01"
                             style={{ width: 90 }}
-                            title={`收貨單價（未稅）：預設採購單價 ${Number(l.unitPrice)}；到貨發票價不同時改這裡，進貨單以收貨價入帳`}
+                            title={t("收貨單價（未稅）：預設採購單價 {price}；到貨發票價不同時改這裡，進貨單以收貨價入帳", { price: Number(l.unitPrice) })}
                             value={receivePrice[l.id] ?? Number(l.unitPrice)}
                             onChange={(e) => setReceivePrice((m) => ({ ...m, [l.id]: Number(e.target.value) }))}
                           />
@@ -286,34 +284,34 @@ export function Purchases() {
                     </div>
                   ))}
                   {po.purchaseIds.length > 0 && (
-                    <div style={{ fontSize: 12, color: "var(--text-2)" }}>進貨單：{po.purchaseIds.map((id) => `#${id}`).join("、")}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-2)" }}>{t("進貨單：{ids}", { ids: po.purchaseIds.map((id) => `#${id}`).join("、") })}</div>
                   )}
                 </td>
                 <td className="num">{fmt(po.total)}</td>
                 <td>
                   <span
                     className={`badge ${po.status === "closed" ? "issued" : po.status === "canceled" ? "canceled" : ""}`}
-                    title={po.closeReason ? `短交結案：${po.closeReason}` : undefined}
+                    title={po.closeReason ? t("短交結案：{reason}", { reason: po.closeReason }) : undefined}
                   >
-                    {po.status === "closed" && po.closedAt ? "短交結案" : PO_STATUS[po.status]}
+                    {po.status === "closed" && po.closedAt ? t("短交結案") : t(PO_STATUS[po.status])}
                   </span>
                 </td>
                 <td>
                   {(po.status === "open" || po.status === "partial") && receivingId !== po.id && (
-                    <button className="small" onClick={() => startReceive(po)}>收貨</button>
+                    <button className="small" onClick={() => startReceive(po)}>{t("收貨")}</button>
                   )}
                   {receivingId === po.id && (
                     <>
                       <input type="date" value={receiveDate} onChange={(e) => setReceiveDate(e.target.value)} />{" "}
-                      <button className="small" onClick={() => void confirmReceive(po)}>確認收貨</button>{" "}
-                      <button className="small" onClick={() => setReceivingId(null)}>取消</button>
+                      <button className="small" onClick={() => void confirmReceive(po)}>{t("確認收貨")}</button>{" "}
+                      <button className="small" onClick={() => setReceivingId(null)}>{t("取消")}</button>
                     </>
                   )}{" "}
                   {po.status === "open" && receivingId !== po.id && (
-                    <button className="small" onClick={() => void act(() => api.post(`/purchase-orders/${po.id}/cancel`, {}))}>取消採購單</button>
+                    <button className="small" onClick={() => void act(() => api.post(`/purchase-orders/${po.id}/cancel`, {}))}>{t("取消採購單")}</button>
                   )}{" "}
                   {(po.status === "open" || po.status === "partial") && receivingId !== po.id && (
-                    <button className="small" title="到此為止：已收貨的留著，剩餘量不再收" onClick={() => closePo(po)}>結案</button>
+                    <button className="small" title={t("到此為止：已收貨的留著，剩餘量不再收")} onClick={() => closePo(po)}>{t("結案")}</button>
                   )}
                 </td>
               </tr>
@@ -324,7 +322,7 @@ export function Purchases() {
       </div>
 
       <div className="card">
-        <h3>新增進貨單</h3>
+        <h3>{t("新增進貨單")}</h3>
         <DocForm
           kind="purchases"
           partners={partners.data ?? []}
@@ -334,17 +332,17 @@ export function Purchases() {
         />
       </div>
       <div className="card">
-        <h3>進貨單（登錄供應商發票後才會納入 401 進項扣抵）</h3>
+        <h3>{t("進貨單（登錄供應商發票後才會納入 401 進項扣抵）")}</h3>
         <ListFilterBar
           partners={partners.data?.filter((p) => p.isSupplier) ?? []}
-          partnerLabel="供應商"
+          partnerLabel={t("供應商")}
           onApply={setDocFilterQ}
           total={docs.total}
           shown={docs.data?.length ?? 0}
         />
         <table>
           <thead>
-            <tr><th>單號</th><th>日期</th><th className="num">未稅</th><th className="num">稅額</th><th className="num">總額</th><th>進項發票</th><th>退出</th><th></th></tr>
+            <tr><th>{t("單號")}</th><th>{t("日期")}</th><th className="num">{t("未稅")}</th><th className="num">{t("稅額")}</th><th className="num">{t("總額")}</th><th>{t("進項發票")}</th><th>{t("退出")}</th><th></th></tr>
           </thead>
           <tbody>
             {docs.data?.map((d) => {
@@ -355,7 +353,7 @@ export function Purchases() {
                 <td>
                   #{d.id}{" "}
                   {d.voidedAt && (
-                    <span className="badge canceled" title={`作廢理由：${d.voidReason ?? ""}`}>已作廢</span>
+                    <span className="badge canceled" title={t("作廢理由：{reason}", { reason: d.voidReason ?? "" })}>{t("已作廢")}</span>
                   )}
                 </td>
                 <td>{d.docDate}</td>
@@ -367,23 +365,23 @@ export function Purchases() {
                     <>
                       {d.invTrack}{d.invNo}
                       <div style={{ fontSize: 12, color: "var(--text-2)" }}>
-                        {INV_FORMATS.find(([code]) => code === d.invFormat)?.[1] ?? d.invFormat}｜
-                        {DEDUCTION_CODES.find(([code]) => code === d.deductionCode)?.[1] ?? d.deductionCode}
+                        {t(INV_FORMATS.find(([code]) => code === d.invFormat)?.[1] ?? d.invFormat ?? "")}｜
+                        {t(DEDUCTION_CODES.find(([code]) => code === d.deductionCode)?.[1] ?? d.deductionCode ?? "")}
                       </div>
                       {/* 發票日期（R20）＝401 歸期依據；沒登的舊單以進貨單日期歸期，要看得出來 */}
                       <div style={{ fontSize: 12, color: d.invDate ? "var(--text-2)" : "var(--red)" }}>
-                        {d.invDate ? `發票日期 ${d.invDate}` : "發票日期未登錄（申報歸期以進貨單日期代）"}
+                        {d.invDate ? t("發票日期 {date}", { date: d.invDate }) : t("發票日期未登錄（申報歸期以進貨單日期代）")}
                       </div>
                     </>
                   ) : (
-                    "未登錄"
+                    t("未登錄")
                   )}
                 </td>
-                <td>{ret.count ? <span className="badge">已退 {fmt(ret.net)} 元（{ret.count} 張）</span> : "—"}</td>
+                <td>{ret.count ? <span className="badge">{t("已退 {amount} 元（{count} 張）", { amount: fmt(ret.net), count: ret.count })}</span> : "—"}</td>
                 <td>
                   {editingId !== d.id && !d.voidedAt && (
                     <button className="small" onClick={() => startInvoiceEdit(d)}>
-                      {d.invTrack ? "改發票資訊" : "登錄發票"}
+                      {d.invTrack ? t("改發票資訊") : t("登錄發票")}
                     </button>
                   )}
                   {editingId === d.id && (
@@ -399,29 +397,29 @@ export function Purchases() {
                       />{" "}
                       <input
                         type="date"
-                        title="供應商發票上的開立日期：401 進項歸期用它（跨月發票務必照發票填，才與賣方申報落在同一期）"
+                        title={t("供應商發票上的開立日期：401 進項歸期用它（跨月發票務必照發票填，才與賣方申報落在同一期）")}
                         value={invDate}
                         onChange={(e) => setInvDate(e.target.value)}
                       />{" "}
-                      <select title="憑證種類（決定申報書落哪一欄）" value={invFormat} onChange={(e) => setInvFormat(e.target.value)}>
+                      <select title={t("憑證種類（決定申報書落哪一欄）")} value={invFormat} onChange={(e) => setInvFormat(e.target.value)}>
                         {INV_FORMATS.map(([code, label]) => (
-                          <option key={code} value={code}>{label}</option>
+                          <option key={code} value={code}>{t(label)}</option>
                         ))}
                       </select>{" "}
-                      <select title="用途（決定進項稅額可否扣抵；選錯會少繳或多繳稅）" value={invDeduction} onChange={(e) => setInvDeduction(e.target.value)}>
+                      <select title={t("用途（決定進項稅額可否扣抵；選錯會少繳或多繳稅）")} value={invDeduction} onChange={(e) => setInvDeduction(e.target.value)}>
                         {DEDUCTION_CODES.map(([code, label]) => (
-                          <option key={code} value={code}>{label}</option>
+                          <option key={code} value={code}>{t(label)}</option>
                         ))}
                       </select>{" "}
-                      <button className="small" onClick={() => registerInvoice(d.id)}>確認</button>{" "}
-                      <button className="small" onClick={() => setEditingId(null)}>取消</button>
+                      <button className="small" onClick={() => registerInvoice(d.id)}>{t("確認")}</button>{" "}
+                      <button className="small" onClick={() => setEditingId(null)}>{t("取消")}</button>
                     </>
                   )}{" "}
                   {/* 與「登錄供應商發票」並排：對會計而言這兩件事是同一類動作——登錄供應商寄來的紙 */}
                   {returningId !== d.id && editingId !== d.id && !d.voidedAt && (
                     <>
-                      <button className="small" onClick={() => { setReturningId(d.id); setError(null); }}>退出／折讓</button>{" "}
-                      {canVoid && <button className="small" onClick={() => void voidPurchase(d)}>作廢</button>}
+                      <button className="small" onClick={() => { setReturningId(d.id); setError(null); }}>{t("退出／折讓")}</button>{" "}
+                      {canVoid && <button className="small" onClick={() => void voidPurchase(d)}>{t("作廢")}</button>}
                     </>
                   )}
                 </td>
@@ -454,36 +452,32 @@ export function Purchases() {
       </div>
 
       <div className="card">
-        <h3>退出／折讓紀錄（原進貨單維持原金額，這裡是它的減項）</h3>
+        <h3>{t("退出／折讓紀錄（原進貨單維持原金額，這裡是它的減項）")}</h3>
         {missingCert.length > 0 && (
           /* 與銷貨端同一條規則：證明單是廠商開給我們的，沒收到／沒登錄就沒有申報減項的依據 */
           <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--red)" }}>
-            有 <strong>{missingCert.length} 筆</strong>還沒登錄退回折讓證明單號碼。
-            這張單通常由廠商開立給我們，收到之後回到這裡補登號碼，申報時才有減項的依據。{" "}
+            {t("有 {n} 筆還沒登錄退回折讓證明單號碼。這張單通常由廠商開立給我們，收到之後回到這裡補登號碼，申報時才有減項的依據。", { n: missingCert.length })}{" "}
             <button className="small" onClick={() => setCertOnly((v) => !v)}>
-              {certOnly ? "顯示全部" : "只看缺證明單的"}
+              {certOnly ? t("顯示全部") : t("只看缺證明單的")}
             </button>
           </p>
         )}
         {returns.data?.length === 0 && (
           <EmptyState
             icon="📦"
-            title="還沒有進貨退出或折讓"
-            desc={
-              "貨有問題退回給廠商，就在上面的進貨單列按「退出／折讓」——庫存會自動扣除、應付帳款同步減少。" +
-              "貨沒退但廠商同意少收錢（短少、破損議價）請選「折讓」。"
-            }
+            title={t("還沒有進貨退出或折讓")}
+            desc={t("貨有問題退回給廠商，就在上面的進貨單列按「退出／折讓」——庫存會自動扣除、應付帳款同步減少。貨沒退但廠商同意少收錢（短少、破損議價）請選「折讓」。")}
           />
         )}
         {returns.data && returns.data.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>單號</th><th>日期</th><th>供應商</th><th>類型</th><th>原進貨單</th>
-                <th className="num">未稅</th><th className="num">稅額</th><th className="num">沖應付</th>
-                <th className="num">成本差異</th>
-                <th title="外部（財政部軟體或加值中心平台）開立的退回折讓證明單號碼與日期；本系統不產生證明單">證明單</th>
-                <th>原因</th>
+                <th>{t("單號")}</th><th>{t("日期")}</th><th>{t("供應商")}</th><th>{t("類型")}</th><th>{t("原進貨單")}</th>
+                <th className="num">{t("未稅")}</th><th className="num">{t("稅額")}</th><th className="num">{t("沖應付")}</th>
+                <th className="num">{t("成本差異")}</th>
+                <th title={t("外部（財政部軟體或加值中心平台）開立的退回折讓證明單號碼與日期；本系統不產生證明單")}>{t("證明單")}</th>
+                <th>{t("原因")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -495,20 +489,20 @@ export function Purchases() {
                     {r.voidedAt && (
                       <>
                         {" "}
-                        <span className="badge canceled" title={`作廢理由：${r.voidReason ?? "未記錄"}`}>已作廢</span>
+                        <span className="badge canceled" title={t("作廢理由：{reason}", { reason: r.voidReason ?? t("未記錄") })}>{t("已作廢")}</span>
                       </>
                     )}
                   </td>
                   <td>{r.docDate}</td>
                   <td>{r.partnerName}</td>
-                  <td><span className="badge">{r.kind === "return" ? "退出" : "折讓"}</span></td>
+                  <td><span className="badge">{r.kind === "return" ? t("退出") : t("折讓")}</span></td>
                   <td>#{r.purchaseId}</td>
                   <td className="num">{fmt(r.subtotal)}</td>
                   <td className="num">{fmt(r.tax)}</td>
                   <td className="num">{fmt(r.apOffset ?? 0)}</td>
                   <td
                     className="num"
-                    title="廠商退的錢與帳上沖掉的存貨成本之間的差額，已調整銷貨成本（正數＝減少成本、負數＝增加成本）"
+                    title={t("廠商退的錢與帳上沖掉的存貨成本之間的差額，已調整銷貨成本（正數＝減少成本、負數＝增加成本）")}
                   >
                     {r.costDiff ? fmt(r.costDiff) : "—"}
                   </td>
@@ -531,7 +525,7 @@ export function Purchases() {
                   <td>
                     {/* 作廢（0030）限財務／管理者；已作廢的不再顯示（伺服端同樣會 409） */}
                     {canVoid && !r.voidedAt && (
-                      <button className="small" onClick={() => void voidReturn(r)}>作廢</button>
+                      <button className="small" onClick={() => void voidReturn(r)}>{t("作廢")}</button>
                     )}
                   </td>
                 </tr>
@@ -542,9 +536,9 @@ export function Purchases() {
       </div>
 
       <div className="card">
-        <h3>應付帳齡（排付款用：付款自動沖最舊的進貨單，剩下的按**付款到期日**分逾期桶）</h3>
+        <h3>{t("應付帳齡（排付款用：付款自動沖最舊的進貨單，剩下的按**付款到期日**分逾期桶）")}</h3>
         <form className="inline" onSubmit={(e) => e.preventDefault()}>
-          <label className="field">基準日<input type="date" value={agingAsOf} onChange={(e) => setAgingAsOf(e.target.value)} /></label>
+          <label className="field">{t("基準日")}<input type="date" value={agingAsOf} onChange={(e) => setAgingAsOf(e.target.value)} /></label>
         </form>
         {/* 回退標註（沒有到期日的舊單以單據日估算）：不可靜默，混兩種算法要讓人看得出來 */}
         {(aging.data?.notes ?? []).map((n, i) => (
@@ -553,15 +547,15 @@ export function Purchases() {
         <table style={{ marginTop: 12 }}>
           <thead>
             <tr>
-              <th>供應商</th>
-              <th className="num">未到期</th>
-              <th className="num">逾期 30 天內</th>
-              <th className="num">逾期 31–60 天</th>
-              <th className="num">逾期 61–90 天</th>
-              <th className="num">逾期超過 90 天</th>
-              <th className="num">未付合計</th>
-              <th className="num">已到期未付</th>
-              <th className="num">預付</th>
+              <th>{t("供應商")}</th>
+              <th className="num">{t("未到期")}</th>
+              <th className="num">{t("逾期 30 天內")}</th>
+              <th className="num">{t("逾期 31–60 天")}</th>
+              <th className="num">{t("逾期 61–90 天")}</th>
+              <th className="num">{t("逾期超過 90 天")}</th>
+              <th className="num">{t("未付合計")}</th>
+              <th className="num">{t("已到期未付")}</th>
+              <th className="num">{t("預付")}</th>
             </tr>
           </thead>
           <tbody>
@@ -584,7 +578,7 @@ export function Purchases() {
             ))}
             {aging.data && aging.data.rows.length > 0 && (
               <tr style={{ fontWeight: 600 }}>
-                <td>合計</td>
+                <td>{t("合計")}</td>
                 <td className="num">{fmt(aging.data.totals.notDue)}</td>
                 <td className="num">{fmt(aging.data.totals.d0_30)}</td>
                 <td className="num">{fmt(aging.data.totals.d31_60)}</td>
@@ -597,7 +591,7 @@ export function Purchases() {
             )}
           </tbody>
         </table>
-        {aging.data?.rows.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>目前沒有未付款項。</p>}
+        {aging.data?.rows.length === 0 && <p style={{ fontSize: 13, color: "var(--text-2)" }}>{t("目前沒有未付款項。")}</p>}
       </div>
     </div>
   );

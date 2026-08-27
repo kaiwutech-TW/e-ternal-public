@@ -23,10 +23,10 @@ function Demo() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("語言偏好", () => {
-  it("dom.ts 釘住 zh-TW；沒有偏好時跟瀏覽器語言（jsdom 是 en-US → en）", () => {
+  it("沒有偏好時：vitest 底下一律來源語言（瀏覽器語言偵測只在真機生效）", () => {
     expect(getLocale()).toBe("zh-TW");
     localStorage.removeItem("eternal-locale");
-    expect(getLocale()).toBe("en");
+    expect(getLocale()).toBe("zh-TW");
   });
   it("setLocale 寫 localStorage 並套 <html lang>", () => {
     setLocale("en");
@@ -37,7 +37,7 @@ describe("語言偏好", () => {
   });
   it("localStorage 存了垃圾值就當沒存", () => {
     localStorage.setItem("eternal-locale", "klingon");
-    expect(getLocale()).toBe("en"); // jsdom navigator 是 en-US
+    expect(getLocale()).toBe("zh-TW");
   });
 });
 

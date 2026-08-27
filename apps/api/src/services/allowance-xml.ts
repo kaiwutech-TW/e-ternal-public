@@ -52,20 +52,19 @@ function allocateTax(amounts: number[], totalTax: number): number[] {
  */
 export async function saleAllowanceG0401(db: Db, returnId: number): Promise<{ fileName: string; xml: string }> {
   const [doc] = await db.select().from(schema.salesReturns).where(eq(schema.salesReturns.id, returnId));
-  if (!doc) throw new AppError(404, `銷貨退回／折讓單不存在: ${returnId}`);
+  if (!doc) throw new AppError(404, "銷貨退回／折讓單不存在: {id}", { id: returnId });
   if (doc.kind !== "allowance") {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 是退回單，不是折讓單。G0401 目前只支援折讓（官方範例僅涵蓋折讓的表達方式）；` +
-        `退回的證明單請以財政部軟體或加值中心平台開立後，回到銷貨頁補登號碼`,
+      "折讓單 #{id} 是退回單，不是折讓單。G0401 目前只支援折讓（官方範例僅涵蓋折讓的表達方式）；退回的證明單請以財政部軟體或加值中心平台開立後，回到銷貨頁補登號碼",
+      { id: returnId },
     );
   }
   if (!doc.certNo || !doc.certDate) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 還沒登錄證明單號碼${doc.certNo ? "的日期" : "與日期"}，產不出 G0401。` +
-        `號碼由貴公司自行編定（即 XML 的 AllowanceNumber）、日期是折讓證明單的開立日；` +
-        `請到銷貨頁的「退貨／折讓紀錄」補登後再下載`,
+      "折讓單 #{id} 還沒登錄證明單號碼{missing}，產不出 G0401。號碼由貴公司自行編定（即 XML 的 AllowanceNumber）、日期是折讓證明單的開立日；請到銷貨頁的「退貨／折讓紀錄」補登後再下載",
+      { id: returnId, missing: doc.certNo ? "的日期" : "與日期" },
     );
   }
   // 號碼會進 XML 的 AllowanceNumber 與下載檔名（G0401-<號碼>.xml），限英數與 - _ ：
@@ -73,8 +72,8 @@ export async function saleAllowanceG0401(db: Db, returnId: number): Promise<{ fi
   if (!/^[A-Za-z0-9_-]+$/.test(doc.certNo)) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 的證明單號碼「${doc.certNo}」含有英數、連字號、底線以外的字元，` +
-        `不能作為 G0401 的 AllowanceNumber 與檔名。請修改號碼後再下載`,
+      "折讓單 #{id} 的證明單號碼「{certNo}」含有英數、連字號、底線以外的字元，不能作為 G0401 的 AllowanceNumber 與檔名。請修改號碼後再下載",
+      { id: returnId, certNo: doc.certNo },
     );
   }
 
@@ -85,9 +84,8 @@ export async function saleAllowanceG0401(db: Db, returnId: number): Promise<{ fi
   if (!invoice) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 的原銷貨單 #${doc.saleId} 沒有已開立的電子發票，產不出 G0401` +
-        `（折讓證明單的明細必須指回原發票號碼）。原銷貨若是紙本或免開發票的交易，` +
-        `證明單請以財政部軟體開立；發票被作廢過的請先重新開立`,
+      "折讓單 #{id} 的原銷貨單 #{saleId} 沒有已開立的電子發票，產不出 G0401（折讓證明單的明細必須指回原發票號碼）。原銷貨若是紙本或免開發票的交易，證明單請以財政部軟體開立；發票被作廢過的請先重新開立",
+      { id: returnId, saleId: doc.saleId },
     );
   }
 
@@ -170,30 +168,30 @@ export async function saleAllowanceG0401(db: Db, returnId: number): Promise<{ fi
  */
 export async function saleAllowanceG0501(db: Db, returnId: number): Promise<{ fileName: string; xml: string }> {
   const [doc] = await db.select().from(schema.salesReturns).where(eq(schema.salesReturns.id, returnId));
-  if (!doc) throw new AppError(404, `銷貨退回／折讓單不存在: ${returnId}`);
+  if (!doc) throw new AppError(404, "銷貨退回／折讓單不存在: {id}", { id: returnId });
   if (doc.kind !== "allowance") {
     throw new AppError(
       422,
-      `#${returnId} 是退回單，不是折讓單。G0501 只作廢本系統產出的 G0401 折讓證明單；` +
-        `退回的證明單是以外部工具開立的，其作廢也請在原開立工具處理`,
+      "#{id} 是退回單，不是折讓單。G0501 只作廢本系統產出的 G0401 折讓證明單；退回的證明單是以外部工具開立的，其作廢也請在原開立工具處理",
+      { id: returnId },
     );
   }
   if (!doc.voidedAt) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 尚未作廢，沒有作廢訊息可產。G0501 是「作廢折讓證明單」的對外訊息，` +
-        `請先在銷貨頁作廢這張折讓單`,
+      "折讓單 #{id} 尚未作廢，沒有作廢訊息可產。G0501 是「作廢折讓證明單」的對外訊息，請先在銷貨頁作廢這張折讓單",
+      { id: returnId },
     );
   }
   if (!doc.certNo || !doc.certDate) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 作廢前沒有登錄過證明單號碼與日期，表示從未產出 G0401——` +
-        `沒有開立訊息就沒有要作廢的對外訊息，帳務面的作廢已經完成，不需要 G0501`,
+      "折讓單 #{id} 作廢前沒有登錄過證明單號碼與日期，表示從未產出 G0401——沒有開立訊息就沒有要作廢的對外訊息，帳務面的作廢已經完成，不需要 G0501",
+      { id: returnId },
     );
   }
   if (!doc.voidReason) {
-    throw new AppError(422, `折讓單 #${returnId} 沒有記錄作廢理由（資料異常，請聯絡管理者）——G0501 的 CancelReason 必填`);
+    throw new AppError(422, "折讓單 #{id} 沒有記錄作廢理由（資料異常，請聯絡管理者）——G0501 的 CancelReason 必填", { id: returnId });
   }
 
   // 買方統編取原發票快照：G0401 開立時就是這個來源，作廢訊息必須指同一個買方。
@@ -207,8 +205,8 @@ export async function saleAllowanceG0501(db: Db, returnId: number): Promise<{ fi
   if (!invoice) {
     throw new AppError(
       422,
-      `折讓單 #${returnId} 的原銷貨單 #${doc.saleId} 沒有任何電子發票紀錄，取不到買方統編，產不出 G0501` +
-        `（這張折讓的證明單若是以外部工具開立的，其作廢也請在原開立工具處理）`,
+      "折讓單 #{id} 的原銷貨單 #{saleId} 沒有任何電子發票紀錄，取不到買方統編，產不出 G0501（這張折讓的證明單若是以外部工具開立的，其作廢也請在原開立工具處理）",
+      { id: returnId, saleId: doc.saleId },
     );
   }
   const [company] = await db.select().from(schema.companyProfile);

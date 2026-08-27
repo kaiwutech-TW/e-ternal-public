@@ -40,8 +40,8 @@ function assertNotVoided(
   if (doc.voidedAt) {
     throw new AppError(
       409,
-      `${label} #${id} 已於 ${doc.voidedAt.toISOString().slice(0, 10)} 作廢（理由：${doc.voidReason ?? "未記錄"}），` +
-        `不可再作廢。要恢復這筆交易請重開一張新單`,
+      "{label} #{id} 已於 {date} 作廢（理由：{reason}），不可再作廢。要恢復這筆交易請重開一張新單",
+      { label, id, date: doc.voidedAt.toISOString().slice(0, 10), reason: doc.voidReason ?? "未記錄" },
     );
   }
 }
@@ -59,17 +59,16 @@ async function assertReversalDateOpen(tx: Db, date: string, originalDate: string
   if (date < originalDate) {
     throw new AppError(
       422,
-      `沖轉日 ${date} 早於原單日期 ${originalDate}——反向傳票不能落在原單發生之前，` +
-        `否則兩個日期之間的期間餘額會暫時反向（帳上出現「先沖銷、後發生」）。` +
-        `請帶原單日期當天或之後的 voidDate`,
+      "沖轉日 {date} 早於原單日期 {originalDate}——反向傳票不能落在原單發生之前，否則兩個日期之間的期間餘額會暫時反向（帳上出現「先沖銷、後發生」）。請帶原單日期當天或之後的 voidDate",
+      { date, originalDate },
     );
   }
   const through = await closedThrough(tx);
   if (through && date.slice(0, 7) <= through) {
     throw new AppError(
       409,
-      `反向傳票日期 ${date} 屬於已關帳期間（帳務關至 ${through}）。` +
-        `請在作廢時帶 voidDate 以開放期間的日期（例如今天）沖轉，或先到「報表」頁重開該期間`,
+      "反向傳票日期 {date} 屬於已關帳期間（帳務關至 {through}）。請在作廢時帶 voidDate 以開放期間的日期（例如今天）沖轉，或先到「報表」頁重開該期間",
+      { date, through },
     );
   }
 }
@@ -112,9 +111,8 @@ async function assertNotSettledByCashDoc(
     const ids = [...new Set(rows.map((r) => r.cashDocId))].sort((a, b) => a - b);
     throw new AppError(
       409,
-      `${label} #${targetId} 已被${docLabel} ${ids.map((i) => `#${i}`).join("、")} ${how}，不可直接作廢——` +
-        `硬廢會讓那筆沖銷懸空（${docLabel}還活著、被沖的單卻消失，對象餘額會變負）。` +
-        `請先作廢${docLabel} ${ids.map((i) => `#${i}`).join("、")} 再作廢本單`,
+      "{label} #{id} 已被{docLabel} {ids} {how}，不可直接作廢——硬廢會讓那筆沖銷懸空（{docLabel}還活著、被沖的單卻消失，對象餘額會變負）。請先作廢{docLabel} {ids} 再作廢本單",
+      { label, id: targetId, docLabel, ids: ids.map((i) => `#${i}`).join("、"), how },
     );
   }
 }
@@ -134,7 +132,7 @@ async function insertReversalEntry(
     .select()
     .from(schema.journalLines)
     .where(eq(schema.journalLines.entryId, originalEntryId));
-  if (!origLines.length) throw new AppError(500, `傳票 #${originalEntryId} 沒有分錄，無法沖轉`);
+  if (!origLines.length) throw new AppError(500, "傳票 #{id} 沒有分錄，無法沖轉", { id: originalEntryId });
   const [entry] = await tx
     .insert(schema.journalEntries)
     .values({ entryDate: opts.entryDate, memo: opts.memo, sourceType: opts.sourceType, sourceId: opts.sourceId })
@@ -155,10 +153,10 @@ async function insertReversalEntry(
 export async function voidCashDoc(db: Db, id: number, input: VoidInput, userId: number) {
   return db.transaction(async (tx) => {
     const [doc] = await tx.select().from(schema.cashDocs).where(eq(schema.cashDocs.id, id)).for("update");
-    if (!doc) throw new AppError(404, `收付款單不存在: ${id}`);
+    if (!doc) throw new AppError(404, "收付款單不存在: {id}", { id });
     const label = doc.kind === "receipt" ? "收款單" : "付款單";
     assertNotVoided(label, id, doc);
-    if (!doc.journalEntryId) throw new AppError(422, `${label} #${id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+    if (!doc.journalEntryId) throw new AppError(422, "{label} #{id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）", { label, id });
 
     const reversalDate = input.voidDate ?? doc.docDate;
     await assertReversalDateOpen(tx, reversalDate, doc.docDate);
@@ -207,13 +205,12 @@ export async function voidManualEntry(db: Db, id: number, input: VoidInput, user
       .from(schema.journalEntries)
       .where(eq(schema.journalEntries.id, id))
       .for("update");
-    if (!entry) throw new AppError(404, `傳票不存在: ${id}`);
+    if (!entry) throw new AppError(404, "傳票不存在: {id}", { id });
     if (entry.sourceType !== "manual") {
       throw new AppError(
         422,
-        `傳票 #${id} 是系統自動拋轉的（來源：${entry.sourceType ?? "未知"} #${entry.sourceId ?? "?"}），` +
-          `不可直接作廢。請到該單據所在的頁面作廢那張單，傳票會隨之沖轉——` +
-          `只沖傳票會讓單據面的餘額與彙總跟總帳對不起來`,
+        "傳票 #{id} 是系統自動拋轉的（來源：{sourceType} #{sourceId}），不可直接作廢。請到該單據所在的頁面作廢那張單，傳票會隨之沖轉——只沖傳票會讓單據面的餘額與彙總跟總帳對不起來",
+        { id, sourceType: entry.sourceType ?? "未知", sourceId: entry.sourceId ?? "?" },
       );
     }
     assertNotVoided("傳票", id, entry);
@@ -227,8 +224,8 @@ export async function voidManualEntry(db: Db, id: number, input: VoidInput, user
     if (reversalOf) {
       throw new AppError(
         422,
-        `傳票 #${id} 是作廢傳票 #${reversalOf.id} 時產生的反向沖轉傳票，不可單獨作廢——` +
-          `這等於悄悄恢復已作廢的傳票 #${reversalOf.id}。若原傳票其實是對的，請照原內容重開一張新傳票`,
+        "傳票 #{id} 是作廢傳票 #{originalId} 時產生的反向沖轉傳票，不可單獨作廢——這等於悄悄恢復已作廢的傳票 #{originalId}。若原傳票其實是對的，請照原內容重開一張新傳票",
+        { id, originalId: reversalOf.id },
       );
     }
 
@@ -264,10 +261,10 @@ export async function voidWithholdingPayment(db: Db, id: number, input: VoidInpu
       .from(schema.withholdingPayments)
       .where(eq(schema.withholdingPayments.id, id))
       .for("update");
-    if (!payment) throw new AppError(404, `扣繳支出單不存在: ${id}`);
+    if (!payment) throw new AppError(404, "扣繳支出單不存在: {id}", { id });
     assertNotVoided("扣繳支出單", id, payment);
     if (!payment.journalEntryId) {
-      throw new AppError(422, `扣繳支出單 #${id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+      throw new AppError(422, "扣繳支出單 #{id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）", { id });
     }
 
     const reversalDate = input.voidDate ?? payment.payDate;
@@ -343,9 +340,9 @@ export async function voidSaleCore(
   opts: { entryDate: string; reason: string; userId: number | null },
 ): Promise<number> {
   const [sale] = await tx.select().from(schema.sales).where(eq(schema.sales.id, saleId)).for("update");
-  if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
-  if (sale.reversalEntryId) throw new AppError(409, `銷貨單 ${saleId} 已沖銷（傳票 #${sale.reversalEntryId}）`);
-  if (!sale.journalEntryId) throw new AppError(422, `銷貨單 ${saleId} 無原始傳票，無法沖銷`);
+  if (!sale) throw new AppError(404, "銷貨單不存在: {id}", { id: saleId });
+  if (sale.reversalEntryId) throw new AppError(409, "銷貨單 {id} 已沖銷（傳票 #{entryId}）", { id: saleId, entryId: sale.reversalEntryId });
+  if (!sale.journalEntryId) throw new AppError(422, "銷貨單 {id} 無原始傳票，無法沖銷", { id: saleId });
   // 整單沖銷與退回單都會產生迴轉效果，兩條路都走就是雙重沖銷（存貨回補兩次、收入減兩次）。
   // 已作廢的退回單不算（0030）：它的迴轉效果已被自己的反向傳票收回，把全部退回單作廢後
   // 原單就回到「從未退過」的狀態，理當可以整單作廢
@@ -356,8 +353,8 @@ export async function voidSaleCore(
   if (existingReturn) {
     throw new AppError(
       409,
-      `銷貨單 ${saleId} 已有退回／折讓單（#${existingReturn.id}），不可再整單沖銷` +
-        `（要退掉剩下的部分，請到銷貨頁對這張單再開一張退回單）`,
+      "銷貨單 {id} 已有退回／折讓單（#{returnId}），不可再整單沖銷（要退掉剩下的部分，請到銷貨頁對這張單再開一張退回單）",
+      { id: saleId, returnId: existingReturn.id },
     );
   }
   // 已被有效收款單立沖或預收沖用 → 409 指路先作廢收款單（兩個入口——獨立作廢與
@@ -415,7 +412,7 @@ export async function voidSaleCore(
 export async function voidSale(db: Db, saleId: number, input: { reason: string }, userId: number) {
   return db.transaction(async (tx) => {
     const [sale] = await tx.select().from(schema.sales).where(eq(schema.sales.id, saleId));
-    if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
+    if (!sale) throw new AppError(404, "銷貨單不存在: {id}", { id: saleId });
     const [issued] = await tx
       .select({ invoiceNumber: schema.invoices.invoiceNumber })
       .from(schema.invoices)
@@ -423,17 +420,16 @@ export async function voidSale(db: Db, saleId: number, input: { reason: string }
     if (issued) {
       throw new AppError(
         409,
-        `銷貨單 ${saleId} 已開立發票 ${issued.invoiceNumber} 且未作廢，不可直接作廢銷貨單。` +
-          `請先到「電子發票」頁作廢該發票（作廢時可勾選連動沖銷銷貨單），或改開退回／折讓單`,
+        "銷貨單 {id} 已開立發票 {invoiceNumber} 且未作廢，不可直接作廢銷貨單。請先到「電子發票」頁作廢該發票（作廢時可勾選連動沖銷銷貨單），或改開退回／折讓單",
+        { id: saleId, invoiceNumber: issued.invoiceNumber },
       );
     }
     const through = await closedThrough(tx);
     if (through && sale.docDate.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `銷貨單 ${saleId} 的日期 ${sale.docDate} 屬於已關帳期間（帳務關至 ${through}），` +
-          `作廢會回溯改掉該期間（可能已申報）的數字。請改開退回／折讓單以當期認列，` +
-          `或先到「報表」頁重開該期間`,
+        "銷貨單 {id} 的日期 {docDate} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期間（可能已申報）的數字。請改開退回／折讓單以當期認列，或先到「報表」頁重開該期間",
+        { id: saleId, docDate: sale.docDate, through },
       );
     }
     const reversalEntryId = await voidSaleCore(tx, saleId, {
@@ -462,9 +458,9 @@ export async function voidPurchase(db: Db, purchaseId: number, input: { reason: 
       .from(schema.purchases)
       .where(eq(schema.purchases.id, purchaseId))
       .for("update");
-    if (!purchase) throw new AppError(404, `進貨單不存在: ${purchaseId}`);
+    if (!purchase) throw new AppError(404, "進貨單不存在: {id}", { id: purchaseId });
     assertNotVoided("進貨單", purchaseId, purchase);
-    if (!purchase.journalEntryId) throw new AppError(422, `進貨單 ${purchaseId} 無原始傳票，無法沖銷`);
+    if (!purchase.journalEntryId) throw new AppError(422, "進貨單 {id} 無原始傳票，無法沖銷", { id: purchaseId });
     // 已作廢退出單不算（0030）：理由同銷貨側
     const [existingReturn] = await tx
       .select({ id: schema.purchaseReturns.id })
@@ -473,8 +469,8 @@ export async function voidPurchase(db: Db, purchaseId: number, input: { reason: 
     if (existingReturn) {
       throw new AppError(
         409,
-        `進貨單 ${purchaseId} 已有退出／折讓單（#${existingReturn.id}），不可再整單作廢` +
-          `（要退掉剩下的部分，請到進貨頁對這張單再開一張退出單）`,
+        "進貨單 {id} 已有退出／折讓單（#{returnId}），不可再整單作廢（要退掉剩下的部分，請到進貨頁對這張單再開一張退出單）",
+        { id: purchaseId, returnId: existingReturn.id },
       );
     }
     // 已被有效付款單立沖或預付沖用 → 409 指路先作廢付款單（與銷貨側同一條規則）
@@ -483,9 +479,8 @@ export async function voidPurchase(db: Db, purchaseId: number, input: { reason: 
     if (through && purchase.docDate.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `進貨單 ${purchaseId} 的日期 ${purchase.docDate} 屬於已關帳期間（帳務關至 ${through}），` +
-          `作廢會回溯改掉該期間（可能已申報）的進項數字。請改開退出／折讓單以當期認列，` +
-          `或先到「報表」頁重開該期間`,
+        "進貨單 {id} 的日期 {docDate} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期間（可能已申報）的進項數字。請改開退出／折讓單以當期認列，或先到「報表」頁重開該期間",
+        { id: purchaseId, docDate: purchase.docDate, through },
       );
     }
 
@@ -513,9 +508,8 @@ export async function voidPurchase(db: Db, purchaseId: number, input: { reason: 
         const [product] = await tx.select().from(schema.products).where(eq(schema.products.id, productId));
         throw new AppError(
           409,
-          `商品「${product?.name ?? `#${productId}`}」目前在庫 ${stock.qty}（帳面 ${stock.amount} 元），` +
-            `不足以沖回這張進貨的 ${need.qty}（${need.amount} 元）——這批貨可能已賣出或退回。` +
-            `請改開進貨退出／折讓單處理仍在庫的部分；已賣出的部分本來就沖不回來`,
+          "商品「{name}」目前在庫 {stockQty}（帳面 {stockAmount} 元），不足以沖回這張進貨的 {needQty}（{needAmount} 元）——這批貨可能已賣出或退回。請改開進貨退出／折讓單處理仍在庫的部分；已賣出的部分本來就沖不回來",
+          { name: product?.name ?? `#${productId}`, stockQty: stock.qty, stockAmount: stock.amount, needQty: need.qty, needAmount: need.amount },
         );
       }
     }
@@ -613,15 +607,14 @@ export async function voidInventoryAdjustment(db: Db, id: number, input: { reaso
       .from(schema.inventoryAdjustments)
       .where(eq(schema.inventoryAdjustments.id, id))
       .for("update");
-    if (!doc) throw new AppError(404, `庫存調整單不存在: ${id}`);
+    if (!doc) throw new AppError(404, "庫存調整單不存在: {id}", { id });
     assertNotVoided("庫存調整單", id, doc);
     const through = await closedThrough(tx);
     if (through && doc.docDate.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `庫存調整單 ${id} 的日期 ${doc.docDate} 屬於已關帳期間（帳務關至 ${through}），` +
-          `作廢會回溯改掉該期間已定案的存貨與盤損數字。請在開放期間開一張方向相反的新調整單，` +
-          `或先到「報表」頁重開該期間`,
+        "庫存調整單 {id} 的日期 {docDate} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期間已定案的存貨與盤損數字。請在開放期間開一張方向相反的新調整單，或先到「報表」頁重開該期間",
+        { id, docDate: doc.docDate, through },
       );
     }
 
@@ -643,9 +636,8 @@ export async function voidInventoryAdjustment(db: Db, id: number, input: { reaso
         const [product] = await tx.select().from(schema.products).where(eq(schema.products.id, productId));
         throw new AppError(
           409,
-          `商品「${product?.name ?? `#${productId}`}」目前在庫 ${stock.qty}（帳面 ${stock.amount} 元），` +
-            `不足以沖回這張調整單盤盈的 ${need.qty}（${need.amount} 元）——那批貨可能已賣出。` +
-            `請改開一張方向相反的新調整單處理仍在庫的部分`,
+          "商品「{name}」目前在庫 {stockQty}（帳面 {stockAmount} 元），不足以沖回這張調整單盤盈的 {needQty}（{needAmount} 元）——那批貨可能已賣出。請改開一張方向相反的新調整單處理仍在庫的部分",
+          { name: product?.name ?? `#${productId}`, stockQty: stock.qty, stockAmount: stock.amount, needQty: need.qty, needAmount: need.amount },
         );
       }
     }
@@ -704,8 +696,8 @@ async function assertReturnPeriodsOpen(
   if (doc.docDate.slice(0, 7) <= through) {
     throw new AppError(
       409,
-      `${label} ${id} 的日期 ${doc.docDate} 屬於已關帳期間（帳務關至 ${through}），` +
-        `作廢會回溯改掉該期間已定案的損益與庫存數字。請先到「報表」頁重開該期間`,
+      "{label} {id} 的日期 {docDate} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期間已定案的損益與庫存數字。請先到「報表」頁重開該期間",
+      { label, id, docDate: doc.docDate, through },
     );
   }
   if (doc.certNo) {
@@ -713,8 +705,8 @@ async function assertReturnPeriodsOpen(
     if (effective.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `${label} ${id} 的證明單 ${doc.certNo}（歸期 ${effective}）屬於已關帳期間（帳務關至 ${through}），` +
-          `作廢會把已申報期間的 401 減項抽走。請先到「報表」頁重開該期間，並同步處理已申報的 401`,
+        "{label} {id} 的證明單 {certNo}（歸期 {effective}）屬於已關帳期間（帳務關至 {through}），作廢會把已申報期間的 401 減項抽走。請先到「報表」頁重開該期間，並同步處理已申報的 401",
+        { label, id, certNo: doc.certNo, effective, through },
       );
     }
   }
@@ -753,9 +745,8 @@ async function reverseReturnMovements(
       const [product] = await tx.select().from(schema.products).where(eq(schema.products.id, productId));
       throw new AppError(
         409,
-        `商品「${product?.name ?? `#${productId}`}」目前在庫 ${stock.qty}（帳面 ${stock.amount} 元），` +
-          `不足以沖回${label}回補的 ${need.qty}（${need.amount} 元）——退回來的貨可能已經再賣出。` +
-          `已賣出的部分沖不回來；若只是要修正金額，請重開一張正確的退回／折讓單`,
+        "商品「{name}」目前在庫 {stockQty}（帳面 {stockAmount} 元），不足以沖回{label}回補的 {needQty}（{needAmount} 元）——退回來的貨可能已經再賣出。已賣出的部分沖不回來；若只是要修正金額，請重開一張正確的退回／折讓單",
+        { name: product?.name ?? `#${productId}`, stockQty: stock.qty, stockAmount: stock.amount, label, needQty: need.qty, needAmount: need.amount },
       );
     }
   }
@@ -782,10 +773,10 @@ async function reverseReturnMovements(
 export async function voidSaleReturn(db: Db, id: number, input: { reason: string }, userId: number) {
   return db.transaction(async (tx) => {
     const [doc] = await tx.select().from(schema.salesReturns).where(eq(schema.salesReturns.id, id)).for("update");
-    if (!doc) throw new AppError(404, `銷貨退回／折讓單不存在: ${id}`);
+    if (!doc) throw new AppError(404, "銷貨退回／折讓單不存在: {id}", { id });
     const label = doc.kind === "return" ? "銷貨退回單" : "銷貨折讓單";
     assertNotVoided(label, id, doc);
-    if (!doc.journalEntryId) throw new AppError(422, `${label} #${id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+    if (!doc.journalEntryId) throw new AppError(422, "{label} #{id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）", { label, id });
     await assertReturnPeriodsOpen(tx, label, id, doc);
 
     await reverseReturnMovements(tx, "sale_return", id, label, doc.docDate);
@@ -812,10 +803,10 @@ export async function voidPurchaseReturn(db: Db, id: number, input: { reason: st
       .from(schema.purchaseReturns)
       .where(eq(schema.purchaseReturns.id, id))
       .for("update");
-    if (!doc) throw new AppError(404, `進貨退出／折讓單不存在: ${id}`);
+    if (!doc) throw new AppError(404, "進貨退出／折讓單不存在: {id}", { id });
     const label = doc.kind === "return" ? "進貨退出單" : "進貨折讓單";
     assertNotVoided(label, id, doc);
-    if (!doc.journalEntryId) throw new AppError(422, `${label} #${id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+    if (!doc.journalEntryId) throw new AppError(422, "{label} #{id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）", { label, id });
     await assertReturnPeriodsOpen(tx, label, id, doc);
 
     await reverseReturnMovements(tx, "purchase_return", id, label, doc.docDate);
@@ -851,10 +842,10 @@ export async function voidOpeningBalance(db: Db, id: number, input: VoidInput, u
       .from(schema.openingBalances)
       .where(eq(schema.openingBalances.id, id))
       .for("update");
-    if (!doc) throw new AppError(404, `期初應收／應付單不存在: ${id}`);
+    if (!doc) throw new AppError(404, "期初應收／應付單不存在: {id}", { id });
     const label = doc.kind === "receivable" ? "期初應收單" : "期初應付單";
     assertNotVoided(label, id, doc);
-    if (!doc.journalEntryId) throw new AppError(422, `${label} #${id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+    if (!doc.journalEntryId) throw new AppError(422, "{label} #{id} 沒有原始傳票，無法沖轉（資料異常，請聯絡管理者）", { label, id });
     await assertNotSettledByCashDoc(tx, "opening", id, label);
 
     const reversalDate = input.voidDate ?? doc.entryDate;
@@ -887,13 +878,13 @@ export async function voidOpeningBalance(db: Db, id: number, input: VoidInput, u
 export async function voidFixedAsset(db: Db, id: number, input: { reason: string }, userId: number) {
   return db.transaction(async (tx) => {
     const [asset] = await tx.select().from(schema.fixedAssets).where(eq(schema.fixedAssets.id, id)).for("update");
-    if (!asset) throw new AppError(404, `資產不存在: ${id}`);
+    if (!asset) throw new AppError(404, "資產不存在: {id}", { id });
     assertNotVoided("資產", id, asset);
     if (asset.status === "disposed") {
       throw new AppError(
         409,
-        `資產 #${id}（${asset.name}）已於 ${asset.disposedAt ?? "?"} 處分，帳已沖轉，不可作廢登錄。` +
-          `若處分本身是誤操作，請先「作廢處分」（資產會回到使用中）；確認登錄也有誤時再作廢資產`,
+        "資產 #{id}（{name}）已於 {date} 處分，帳已沖轉，不可作廢登錄。若處分本身是誤操作，請先「作廢處分」（資產會回到使用中）；確認登錄也有誤時再作廢資產",
+        { id, name: asset.name, date: asset.disposedAt ?? "?" },
       );
     }
     const deps = await tx.select().from(schema.assetDepreciations).where(eq(schema.assetDepreciations.assetId, id));
@@ -901,9 +892,8 @@ export async function voidFixedAsset(db: Db, id: number, input: { reason: string
       const accumulated = deps.reduce((s, d) => s + d.amount, 0);
       throw new AppError(
         409,
-        `資產 #${id}（${asset.name}）已提折舊 ${deps.length} 期（累計 ${accumulated} 元），不可作廢——` +
-          `折舊傳票是帳上的真實軌跡，作廢登錄會讓它們無從解釋。` +
-          `要讓這筆資產下帳，請走「處分」（價款 0＝報廢）；折舊金額有誤的部分請以手工傳票調整`,
+        "資產 #{id}（{name}）已提折舊 {periods} 期（累計 {accumulated} 元），不可作廢——折舊傳票是帳上的真實軌跡，作廢登錄會讓它們無從解釋。要讓這筆資產下帳，請走「處分」（價款 0＝報廢）；折舊金額有誤的部分請以手工傳票調整",
+        { id, name: asset.name, periods: deps.length, accumulated },
       );
     }
     const [updated] = await tx
@@ -934,8 +924,8 @@ export async function voidAssetDisposal(db: Db, id: number, input: { reason: str
     if (issued) {
       throw new AppError(
         409,
-        `資產 #${id} 的處分已開立發票 ${issued.invoiceNumber} 且未作廢，不可直接作廢處分。` +
-          `請先到「電子發票」頁作廢該發票（作廢時可勾選連動沖回處分）`,
+        "資產 #{id} 的處分已開立發票 {invoiceNumber} 且未作廢，不可直接作廢處分。請先到「電子發票」頁作廢該發票（作廢時可勾選連動沖回處分）",
+        { id, invoiceNumber: issued.invoiceNumber },
       );
     }
     return voidAssetDisposalCore(tx, id, input, userId);
@@ -949,25 +939,29 @@ export async function voidAssetDisposal(db: Db, id: number, input: { reason: str
  */
 export async function voidAssetDisposalCore(tx: Db, id: number, input: { reason: string }, userId: number | null) {
   const [asset] = await tx.select().from(schema.fixedAssets).where(eq(schema.fixedAssets.id, id)).for("update");
-  if (!asset) throw new AppError(404, `資產不存在: ${id}`);
+  if (!asset) throw new AppError(404, "資產不存在: {id}", { id });
   if (asset.status !== "disposed") {
     throw new AppError(
       409,
-      `資產 #${id}（${asset.name}）目前不是已處分狀態，沒有可作廢的處分` +
-        (asset.disposalVoidedAt
+      "資產 #{id}（{name}）目前不是已處分狀態，沒有可作廢的處分{prev}",
+      {
+        id,
+        name: asset.name,
+        prev: asset.disposalVoidedAt
           ? `（上一次處分已於 ${asset.disposalVoidedAt.toISOString().slice(0, 10)} 作廢，理由：${asset.disposalVoidReason ?? "未記錄"}）`
-          : ""),
+          : "",
+      },
     );
     }
     if (!asset.disposalEntryId || !asset.disposedAt) {
-      throw new AppError(422, `資產 #${id} 沒有處分傳票，無法沖轉（資料異常，請聯絡管理者）`);
+      throw new AppError(422, "資產 #{id} 沒有處分傳票，無法沖轉（資料異常，請聯絡管理者）", { id });
     }
     const through = await closedThrough(tx);
     if (through && asset.disposedAt.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `資產 #${id} 的處分日 ${asset.disposedAt} 屬於已關帳期間（帳務關至 ${through}），` +
-          `作廢會回溯改掉該期已定案的處分損益與銷項稅額。請先到「報表」頁重開該期間`,
+        "資產 #{id} 的處分日 {date} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期已定案的處分損益與銷項稅額。請先到「報表」頁重開該期間",
+        { id, date: asset.disposedAt, through },
       );
     }
     const reversalEntryId = await insertReversalEntry(tx, asset.disposalEntryId, {
@@ -1000,13 +994,13 @@ export async function voidAssetDisposalCore(tx: Db, id: number, input: { reason:
 export async function voidQuote(db: Db, id: number, input: { reason: string }, userId: number) {
   return db.transaction(async (tx) => {
     const [quote] = await tx.select().from(schema.quotes).where(eq(schema.quotes.id, id)).for("update");
-    if (!quote) throw new AppError(404, `報價單不存在: ${id}`);
+    if (!quote) throw new AppError(404, "報價單不存在: {id}", { id });
     assertNotVoided("報價單", id, quote);
     if (quote.status === "won") {
       throw new AppError(
         409,
-        `報價單 ${id} 已成交並轉為訂單 #${quote.orderId ?? "?"}，不可作廢。` +
-          `要取消這筆交易請先處理訂單（未出貨可取消；已出貨請作廢銷貨單或開退回單）`,
+        "報價單 {id} 已成交並轉為訂單 #{orderId}，不可作廢。要取消這筆交易請先處理訂單（未出貨可取消；已出貨請作廢銷貨單或開退回單）",
+        { id, orderId: quote.orderId ?? "?" },
       );
     }
     const [updated] = await tx
@@ -1034,24 +1028,28 @@ export async function voidQuote(db: Db, id: number, input: { reason: string }, u
 export async function voidExpenseClaim(db: Db, id: number, input: { reason: string }, userId: number) {
   return db.transaction(async (tx) => {
     const [claim] = await tx.select().from(schema.expenseClaims).where(eq(schema.expenseClaims.id, id)).for("update");
-    if (!claim) throw new AppError(404, `報銷單不存在: ${id}`);
+    if (!claim) throw new AppError(404, "報銷單不存在: {id}", { id });
     assertNotVoided("報銷單", id, claim);
     if (claim.status === "submitted" || claim.status === "rejected") {
       throw new AppError(
         409,
-        `報銷單 #${id} 尚未核准（${claim.status === "submitted" ? "送審中" : "已退回"}），沒有傳票可沖。` +
-          `${claim.status === "submitted" ? "送審中的單請用「退回」" : "被退回的單可直接修改重送，或放著不管"}`,
+        "報銷單 #{id} 尚未核准（{state}），沒有傳票可沖。{hint}",
+        {
+          id,
+          state: claim.status === "submitted" ? "送審中" : "已退回",
+          hint: claim.status === "submitted" ? "送審中的單請用「退回」" : "被退回的單可直接修改重送，或放著不管",
+        },
       );
     }
-    if (!claim.journalEntryId) throw new AppError(422, `報銷單 #${id} 無原始傳票，無法沖轉（資料異常，請聯絡管理者）`);
+    if (!claim.journalEntryId) throw new AppError(422, "報銷單 #{id} 無原始傳票，無法沖轉（資料異常，請聯絡管理者）", { id });
 
     const through = await closedThrough(tx);
     const assertOpen = (date: string, label: string) => {
       if (through && date.slice(0, 7) <= through) {
         throw new AppError(
           409,
-          `報銷單 #${id} 的${label} ${date} 屬於已關帳期間（帳務關至 ${through}），` +
-            `作廢會回溯改掉該期間（可能已申報）的數字。請先到「報表」頁重開該期間`,
+          "報銷單 #{id} 的{label} {date} 屬於已關帳期間（帳務關至 {through}），作廢會回溯改掉該期間（可能已申報）的數字。請先到「報表」頁重開該期間",
+          { id, label, date, through },
         );
       }
     };

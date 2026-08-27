@@ -4,6 +4,8 @@
  * 缺的 key 回中文。孤兒／未翻 key 用 `node scripts/i18n-scan.mjs` 查。
  */
 import type { Dictionary } from "@tw-erp/core";
+import { common } from "./en/common.ts";
+import { pii } from "./en/pii.ts";
 import { app } from "./en/app.ts";
 import { hrLeave } from "./en/hr-leave.ts";
 import { ledger } from "./en/ledger.ts";
@@ -62,4 +64,6 @@ export const en: Dictionary = {
   ...apiKeys,
   ...agentSettings,
   ...reports,
+  ...pii,
+  ...common, // 最後：跨服務統一句優先
 };

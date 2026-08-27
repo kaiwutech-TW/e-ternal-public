@@ -2,6 +2,8 @@ import { useState } from "react";
 import { api } from "../api.ts";
 import { useAuth } from "../auth.ts";
 import { fmt, useFetch, useListFetch } from "../hooks.ts";
+import { useT } from "../i18n.ts";
+import type { Translator } from "@tw-erp/core";
 import { CompanyHeaderBlock, PrintOverlay } from "../print.tsx";
 import { EmptyState, ListFilterBar, TaxNotes, pickTaxNotes } from "../ui.tsx";
 import type { CompanyHeader, OrderRow, Partner, Product, QuoteRow } from "../types.ts";
@@ -44,6 +46,7 @@ export function LinesForm(props: {
     data: { partnerId: number; date: string; memo: string; expectedDate?: string; lines: Line[] } & TaxFieldsData,
   ) => Promise<void>;
 }) {
+  const t = useT();
   const [partnerId, setPartnerId] = useState(0);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [expectedDate, setExpectedDate] = useState("");
@@ -94,9 +97,9 @@ export function LinesForm(props: {
     <div>
       <form className="inline" onSubmit={(e) => e.preventDefault()}>
         <label className="field">
-          {props.partnerLabel ?? "客戶"}
+          {props.partnerLabel ?? t("客戶")}
           <select value={partnerId} onChange={(e) => setPartnerId(Number(e.target.value))}>
-            <option value={0}>— 請選擇 —</option>
+            <option value={0}>{t("— 請選擇 —")}</option>
             {props.partners.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
@@ -105,33 +108,33 @@ export function LinesForm(props: {
         <label className="field">{props.dateLabel}<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         {props.expectedDateLabel && (
           <label className="field">
-            {props.expectedDateLabel}（選填）
+            {t("{label}（選填）", { label: props.expectedDateLabel })}
             <input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
           </label>
         )}
-        <label className="field">備註（選填）<input value={memo} onChange={(e) => setMemo(e.target.value)} /></label>
+        <label className="field">{t("備註（選填）")}<input value={memo} onChange={(e) => setMemo(e.target.value)} /></label>
         {props.taxFields && (
           <label className="field">
-            課稅別
+            {t("課稅別")}
             <select value={taxType} onChange={(e) => setTaxType(e.target.value as "1" | "2")}>
-              <option value="1">應稅</option>
-              <option value="2">零稅率（外銷）</option>
+              <option value="1">{t("應稅")}</option>
+              <option value="2">{t("零稅率（外銷）")}</option>
             </select>
           </label>
         )}
         {props.taxFields && taxType === "2" && (
           <>
             <label className="field">
-              零稅率依據
+              {t("零稅率依據")}
               <select value={viaCustoms} onChange={(e) => setViaCustoms(e.target.value)}>
-                <option value="">— 必選 —</option>
-                <option value="customs">經海關出口（出口報單）</option>
-                <option value="noncustoms">非經海關（外匯證明等）</option>
+                <option value="">{t("— 必選 —")}</option>
+                <option value="customs">{t("經海關出口（出口報單）")}</option>
+                <option value="noncustoms">{t("非經海關（外匯證明等）")}</option>
               </select>
             </label>
             <label className="field">
-              證明文件號碼（可事後補登）
-              <input value={certNo} placeholder="出口報單／外匯證明號碼" onChange={(e) => setCertNo(e.target.value)} />
+              {t("證明文件號碼（可事後補登）")}
+              <input value={certNo} placeholder={t("出口報單／外匯證明號碼")} onChange={(e) => setCertNo(e.target.value)} />
             </label>
           </>
         )}
@@ -139,19 +142,19 @@ export function LinesForm(props: {
       {lines.map((l, i) => (
         <form key={i} className="inline" style={{ marginTop: 8 }} onSubmit={(e) => e.preventDefault()}>
           <label className="field">
-            商品
+            {t("商品")}
             <select value={l.productId} onChange={(e) => pickProduct(i, Number(e.target.value))}>
-              <option value={0}>— 請選擇 —</option>
+              <option value={0}>{t("— 請選擇 —")}</option>
               {props.products.map((p) => (
-                <option key={p.id} value={p.id}>{p.sku} {p.name}{p.isService ? "（服務）" : ""}</option>
+                <option key={p.id} value={p.id}>{p.sku} {p.name}{p.isService ? t("（服務）") : ""}</option>
               ))}
             </select>
           </label>
-          <label className="field">數量<input type="number" min={0} value={l.qty} onChange={(e) => setLine(i, { qty: Number(e.target.value) })} /></label>
-          <label className="field">單價（未稅）<input type="number" min={0} step="0.01" value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} /></label>
+          <label className="field">{t("數量")}<input type="number" min={0} value={l.qty} onChange={(e) => setLine(i, { qty: Number(e.target.value) })} /></label>
+          <label className="field">{t("單價（未稅）")}<input type="number" min={0} step="0.01" value={l.unitPrice} onChange={(e) => setLine(i, { unitPrice: Number(e.target.value) })} /></label>
           {i === lines.length - 1 && (
             <button className="small" onClick={() => setLines((ls) => [...ls, { productId: 0, qty: 1, unitPrice: 0 }])}>
-              ＋明細
+              {t("＋明細")}
             </button>
           )}
         </form>
@@ -174,30 +177,31 @@ function QuotePrintView(props: {
   company: CompanyHeader | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const { quote, partner } = props;
   const productOf = new Map(props.products.map((p) => [p.id, p]));
   return (
     <PrintOverlay onClose={props.onClose}>
-      <CompanyHeaderBlock company={props.company} docTitle="報價單" />
+      <CompanyHeaderBlock company={props.company} docTitle={t("報價單")} />
       <div className="meta-row">
         <div>
-          客戶：{partner?.name ?? quote.partnerName}
-          {partner?.taxId ? `（統編 ${partner.taxId}）` : ""}
-          {partner?.contactPerson ? `　聯絡人 ${partner.contactPerson}` : ""}
-          {partner?.phone ? `　電話 ${partner.phone}` : ""}
+          {t("客戶：{name}", { name: partner?.name ?? quote.partnerName })}
+          {partner?.taxId ? t("（統編 {taxId}）", { taxId: partner.taxId }) : ""}
+          {partner?.contactPerson ? t("　聯絡人 {name}", { name: partner.contactPerson }) : ""}
+          {partner?.phone ? t("　電話 {phone}", { phone: partner.phone }) : ""}
         </div>
-        <div>單號：#{quote.id}　報價日：{quote.quoteDate}</div>
+        <div>{t("單號：#{id}　報價日：{date}", { id: quote.id, date: quote.quoteDate })}</div>
       </div>
       <table>
         <thead>
-          <tr><th>品名</th><th className="num">數量</th><th>單位</th><th className="num">單價（未稅）</th><th className="num">金額</th></tr>
+          <tr><th>{t("品名")}</th><th className="num">{t("數量")}</th><th>{t("單位")}</th><th className="num">{t("單價（未稅）")}</th><th className="num">{t("金額")}</th></tr>
         </thead>
         <tbody>
           {quote.lines.map((l) => {
             const product = productOf.get(l.productId);
             return (
               <tr key={l.id}>
-                <td>{product ? product.name : `商品 #${l.productId}`}</td>
+                <td>{product ? product.name : t("商品 #{id}", { id: l.productId })}</td>
                 <td className="num">{Number(l.qty).toLocaleString("zh-TW")}</td>
                 <td>{product?.unit ?? ""}</td>
                 <td className="num">{Number(l.unitPrice).toLocaleString("zh-TW")}</td>
@@ -208,24 +212,24 @@ function QuotePrintView(props: {
         </tbody>
       </table>
       <div className="totals">
-        <div>未稅合計：{fmt(quote.subtotal)} 元　營業稅：{fmt(quote.tax)} 元</div>
-        <div className="grand">總計：{fmt(quote.total)} 元</div>
+        <div>{t("未稅合計：{subtotal} 元　營業稅：{tax} 元", { subtotal: fmt(quote.subtotal), tax: fmt(quote.tax) })}</div>
+        <div className="grand">{t("總計：{total} 元", { total: fmt(quote.total) })}</div>
       </div>
-      {quote.expectedDate && <div>預計交期：{quote.expectedDate}</div>}
-      {quote.memo && <div>備註：{quote.memo}</div>}
+      {quote.expectedDate && <div>{t("預計交期：{date}", { date: quote.expectedDate })}</div>}
+      {quote.memo && <div>{t("備註：{memo}", { memo: quote.memo })}</div>}
       <div className="sign-row">
-        <div className="sign-box">報價人簽章</div>
-        <div className="sign-box">客戶確認簽回（簽名即表同意上列品項與金額）</div>
+        <div className="sign-box">{t("報價人簽章")}</div>
+        <div className="sign-box">{t("客戶確認簽回（簽名即表同意上列品項與金額）")}</div>
       </div>
-      <div className="foot-note">金額為整數新台幣元；稅額以報價當日設定之稅率估算，實際以出貨當日開立之單據為準。</div>
+      <div className="foot-note">{t("金額為整數新台幣元；稅額以報價當日設定之稅率估算，實際以出貨當日開立之單據為準。")}</div>
     </PrintOverlay>
   );
 }
 
 /** 付款條件的白話（列印用）：主檔天數 → 文字。null＝未約定——印「另議」而不是留白讓客戶猜 */
-function paymentTermLabel(partner: Partner | undefined): string {
-  if (!partner || partner.paymentTermDays == null) return "另議（未約定）";
-  return partner.paymentTermDays === 0 ? "貨到付款" : `月結 ${partner.paymentTermDays} 天`;
+function paymentTermLabel(t: Translator, partner: Partner | undefined): string {
+  if (!partner || partner.paymentTermDays == null) return t("另議（未約定）");
+  return partner.paymentTermDays === 0 ? t("貨到付款") : t("月結 {days} 天", { days: partner.paymentTermDays });
 }
 
 /**
@@ -239,27 +243,28 @@ function OrderPrintView(props: {
   company: CompanyHeader | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const { order, partner } = props;
   const productOf = new Map(props.products.map((p) => [p.id, p]));
   return (
     <PrintOverlay onClose={props.onClose}>
-      <CompanyHeaderBlock company={props.company} docTitle="訂單確認單" />
+      <CompanyHeaderBlock company={props.company} docTitle={t("訂單確認單")} />
       <div className="meta-row">
         <div>
-          客戶：{partner?.name ?? order.partnerName}
-          {partner?.taxId ? `（統編 ${partner.taxId}）` : ""}
-          {partner?.contactPerson ? `　聯絡人 ${partner.contactPerson}` : ""}
-          {partner?.phone ? `　電話 ${partner.phone}` : ""}
+          {t("客戶：{name}", { name: partner?.name ?? order.partnerName })}
+          {partner?.taxId ? t("（統編 {taxId}）", { taxId: partner.taxId }) : ""}
+          {partner?.contactPerson ? t("　聯絡人 {name}", { name: partner.contactPerson }) : ""}
+          {partner?.phone ? t("　電話 {phone}", { phone: partner.phone }) : ""}
         </div>
         <div>
-          單號：#{order.id}
-          {order.quoteId ? `（報價單 #${order.quoteId}）` : ""}
-          　訂單日：{order.orderDate}
+          {t("單號：#{id}", { id: order.id })}
+          {order.quoteId ? t("（報價單 #{id}）", { id: order.quoteId }) : ""}
+          {t("　訂單日：{date}", { date: order.orderDate })}
         </div>
       </div>
       <table>
         <thead>
-          <tr><th>品名</th><th className="num">數量</th><th>單位</th><th className="num">單價（未稅）</th><th className="num">金額</th></tr>
+          <tr><th>{t("品名")}</th><th className="num">{t("數量")}</th><th>{t("單位")}</th><th className="num">{t("單價（未稅）")}</th><th className="num">{t("金額")}</th></tr>
         </thead>
         <tbody>
           {order.lines.map((l) => {
@@ -277,21 +282,22 @@ function OrderPrintView(props: {
         </tbody>
       </table>
       <div className="totals">
-        <div>未稅合計：{fmt(order.subtotal)} 元　營業稅：{fmt(order.tax)} 元</div>
-        <div className="grand">總計：{fmt(order.total)} 元</div>
+        <div>{t("未稅合計：{subtotal} 元　營業稅：{tax} 元", { subtotal: fmt(order.subtotal), tax: fmt(order.tax) })}</div>
+        <div className="grand">{t("總計：{total} 元", { total: fmt(order.total) })}</div>
       </div>
-      <div>預計交期：{order.expectedDate ?? "另議（未約定）"}　付款條件：{paymentTermLabel(partner)}</div>
-      {order.memo && <div>備註：{order.memo}</div>}
+      <div>{t("預計交期：{date}　付款條件：{terms}", { date: order.expectedDate ?? t("另議（未約定）"), terms: paymentTermLabel(t, partner) })}</div>
+      {order.memo && <div>{t("備註：{memo}", { memo: order.memo })}</div>}
       <div className="sign-row">
-        <div className="sign-box">承辦人簽章</div>
-        <div className="sign-box">客戶確認簽回（簽名即表同意上列品項、金額與交期）</div>
+        <div className="sign-box">{t("承辦人簽章")}</div>
+        <div className="sign-box">{t("客戶確認簽回（簽名即表同意上列品項、金額與交期）")}</div>
       </div>
-      <div className="foot-note">金額為整數新台幣元；稅額以訂單當日設定之稅率估算，實際以出貨當日開立之單據為準。</div>
+      <div className="foot-note">{t("金額為整數新台幣元；稅額以訂單當日設定之稅率估算，實際以出貨當日開立之單據為準。")}</div>
     </PrintOverlay>
   );
 }
 
 export function Orders() {
+  const t = useT();
   // 作廢限財務／管理者（auth.ts RULES）：業務角色不顯示按鈕——顯示一個按了必 403 的鍵是誘導
   const canVoid = ["admin", "finance"].includes(useAuth().role);
   const partners = useFetch<Partner[]>("/partners");
@@ -329,8 +335,8 @@ export function Orders() {
   /** 作廢報價單（B4）：單子建錯用「作廢」（不進統計）；客戶沒成交用「未成交」（成交率的分母），兩者是兩件事 */
   const voidQuote = async (q: QuoteRow) => {
     const reason = window.prompt(
-      `作廢報價單 #${q.id}（${fmt(q.total)} 元）：請輸入作廢理由。\n` +
-        "作廢＝這張單建錯了、不該進任何統計；客戶沒成交請改按「未成交」。",
+      t("作廢報價單 #{id}（{total} 元）：請輸入作廢理由。", { id: q.id, total: fmt(q.total) }) + "\n" +
+        t("作廢＝這張單建錯了、不該進任何統計；客戶沒成交請改按「未成交」。"),
     );
     if (reason === null) return;
     try {
@@ -353,7 +359,7 @@ export function Orders() {
       const lines = o.lines
         .map((l) => ({ orderLineId: l.id, qty: shipQty[l.id] ?? 0 }))
         .filter((l) => l.qty > 0);
-      if (!lines.length) throw new Error("出貨量全為 0");
+      if (!lines.length) throw new Error(t("出貨量全為 0"));
       return api.post(`/orders/${o.id}/ship`, { docDate: shipDate, lines });
     });
 
@@ -364,9 +370,9 @@ export function Orders() {
       .map((l) => `${l.productName} ${l.remainingQty}`)
       .join("、");
     const reason = window.prompt(
-      `結案訂單 #${o.id}：請輸入結案原因（例如：客戶砍單、無法備貨）。\n` +
-        `結案＝到此為止：已出貨的單據全部留著，剩餘（${remaining || "無"}）不再出貨。\n` +
-        `這張單從沒發生請改用「取消訂單」（僅限完全未出貨）。`,
+      t("結案訂單 #{id}：請輸入結案原因（例如：客戶砍單、無法備貨）。", { id: o.id }) + "\n" +
+        t("結案＝到此為止：已出貨的單據全部留著，剩餘（{remaining}）不再出貨。", { remaining: remaining || t("無") }) + "\n" +
+        t("這張單從沒發生請改用「取消訂單」（僅限完全未出貨）。"),
     );
     if (reason === null) return;
     void act(() => api.post(`/orders/${o.id}/close`, { reason: reason.trim() }));
@@ -378,19 +384,19 @@ export function Orders() {
       <TaxNotes notes={taxNotes} />
 
       <div className="card">
-        <h3>新增報價單</h3>
+        <h3>{t("新增報價單")}</h3>
         <LinesForm
-          title="建立報價單"
-          dateLabel="報價日"
+          title={t("建立報價單")}
+          dateLabel={t("報價日")}
           partners={(partners.data ?? []).filter((p) => p.isCustomer)}
           products={products.data ?? []}
           useListPrice
           taxFields
-          expectedDateLabel="預計交期"
+          expectedDateLabel={t("預計交期")}
           onSubmit={async ({ partnerId, date, memo, expectedDate, lines, ...tax }) => {
             try {
-              if (!partnerId) throw new Error("請選客戶");
-              if (!lines.length) throw new Error("至少一筆有效明細");
+              if (!partnerId) throw new Error(t("請選客戶"));
+              if (!lines.length) throw new Error(t("至少一筆有效明細"));
               setTaxNotes(pickTaxNotes(await api.post("/quotes", { partnerId, quoteDate: date, memo: memo || undefined, expectedDate, lines, ...tax })));
               setError(null);
               quotes.reload();
@@ -402,10 +408,10 @@ export function Orders() {
       </div>
 
       <div className="card">
-        <h3>報價單</h3>
+        <h3>{t("報價單")}</h3>
         <ListFilterBar
           partners={partners.data?.filter((p) => p.isCustomer) ?? []}
-          partnerLabel="客戶"
+          partnerLabel={t("客戶")}
           onApply={setQuoteFilterQ}
           total={quotes.total}
           shown={quotes.data?.length ?? 0}
@@ -413,16 +419,16 @@ export function Orders() {
         {quotes.data?.length === 0 && (
           <EmptyState
             icon="🤝"
-            title="還沒有報價單"
+            title={t("還沒有報價單")}
             desc={(partners.data ?? []).some((p) => p.isCustomer)
-              ? "客戶問價時，用上面的表單開一張報價單——成交後一鍵轉訂單。"
-              : "先到「客戶與商品」建立客戶與商品，回來就能開第一張報價單。"}
+              ? t("客戶問價時，用上面的表單開一張報價單——成交後一鍵轉訂單。")
+              : t("先到「客戶與商品」建立客戶與商品，回來就能開第一張報價單。")}
           />
         )}
         {quotes.data && quotes.data.length > 0 && (
         <table>
           <thead>
-            <tr><th>單號</th><th>日期</th><th>交期</th><th>客戶</th><th>內容</th><th className="num">總額（含稅）</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("單號")}</th><th>{t("日期")}</th><th>{t("交期")}</th><th>{t("客戶")}</th><th>{t("內容")}</th><th className="num">{t("總額（含稅）")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {quotes.data?.map((q) => (
@@ -431,20 +437,20 @@ export function Orders() {
                 <td>{q.quoteDate}</td>
                 <td>{q.expectedDate ?? "—"}</td>
                 <td>{q.partnerName}</td>
-                <td>{q.memo || `${q.lines.length} 項`}</td>
+                <td>{q.memo || t("{n} 項", { n: q.lines.length })}</td>
                 <td className="num">{fmt(q.total)}</td>
                 <td>
                   {q.voidedAt ? (
-                    <span className="badge canceled" title={`作廢理由：${q.voidReason ?? ""}`}>已作廢</span>
+                    <span className="badge canceled" title={t("作廢理由：{reason}", { reason: q.voidReason ?? "" })}>{t("已作廢")}</span>
                   ) : (
                     <span className={`badge ${q.status === "won" ? "issued" : q.status === "lost" ? "canceled" : ""}`}>
-                      {QUOTE_STATUS[q.status]}
+                      {t(QUOTE_STATUS[q.status])}
                     </span>
                   )}
                   {q.taxType === "2" && (
-                    <span className="badge" title={q.zeroTaxViaCustoms ? "經海關出口" : "非經海關（外匯證明等）"}>零稅率</span>
+                    <span className="badge" title={q.zeroTaxViaCustoms ? t("經海關出口") : t("非經海關（外匯證明等）")}>{t("零稅率")}</span>
                   )}
-                  {q.orderId && <span style={{ fontSize: 12 }}>（訂單 #{q.orderId}）</span>}
+                  {q.orderId && <span style={{ fontSize: 12 }}>{t("（訂單 #{id}）", { id: q.orderId })}</span>}
                 </td>
                 <td>
                   {q.status === "open" && !q.voidedAt && convertingId !== q.id && (
@@ -456,9 +462,9 @@ export function Orders() {
                           setConvertDate(new Date().toISOString().slice(0, 10));
                         }}
                       >
-                        成交轉訂單
+                        {t("成交轉訂單")}
                       </button>{" "}
-                      <button className="small" onClick={() => void act(() => api.post(`/quotes/${q.id}/lost`, {}))}>未成交</button>{" "}
+                      <button className="small" onClick={() => void act(() => api.post(`/quotes/${q.id}/lost`, {}))}>{t("未成交")}</button>{" "}
                     </>
                   )}
                   {q.status === "open" && !q.voidedAt && convertingId === q.id && (
@@ -480,18 +486,18 @@ export function Orders() {
                           })
                         }
                       >
-                        確認轉單
+                        {t("確認轉單")}
                       </button>{" "}
-                      <button className="small" onClick={() => setConvertingId(null)}>取消</button>{" "}
+                      <button className="small" onClick={() => setConvertingId(null)}>{t("取消")}</button>{" "}
                     </>
                   )}
                   {/* 建錯的單（含誤標未成交的）可作廢；won 由伺服端擋（訂單已帶著這份金額在跑） */}
                   {canVoid && q.status !== "won" && !q.voidedAt && (
                     <>
-                      <button className="small" onClick={() => void voidQuote(q)}>作廢</button>{" "}
+                      <button className="small" onClick={() => void voidQuote(q)}>{t("作廢")}</button>{" "}
                     </>
                   )}
-                  <button className="small" onClick={() => setPrintQuote(q)}>列印</button>
+                  <button className="small" onClick={() => setPrintQuote(q)}>{t("列印")}</button>
                 </td>
               </tr>
             ))}
@@ -501,19 +507,19 @@ export function Orders() {
       </div>
 
       <div className="card">
-        <h3>直接下單（不經報價）</h3>
+        <h3>{t("直接下單（不經報價）")}</h3>
         <LinesForm
-          title="建立訂單"
-          dateLabel="訂單日"
+          title={t("建立訂單")}
+          dateLabel={t("訂單日")}
           partners={(partners.data ?? []).filter((p) => p.isCustomer)}
           products={products.data ?? []}
           useListPrice
           taxFields
-          expectedDateLabel="預計交期"
+          expectedDateLabel={t("預計交期")}
           onSubmit={async ({ partnerId, date, memo, expectedDate, lines, ...tax }) => {
             try {
-              if (!partnerId) throw new Error("請選客戶");
-              if (!lines.length) throw new Error("至少一筆有效明細");
+              if (!partnerId) throw new Error(t("請選客戶"));
+              if (!lines.length) throw new Error(t("至少一筆有效明細"));
               setTaxNotes(pickTaxNotes(await api.post("/orders", { partnerId, orderDate: date, memo: memo || undefined, expectedDate, lines, ...tax })));
               setError(null);
               orders.reload();
@@ -525,17 +531,17 @@ export function Orders() {
       </div>
 
       <div className="card">
-        <h3>訂單（出貨會開銷貨單並拋轉庫存/傳票）</h3>
+        <h3>{t("訂單（出貨會開銷貨單並拋轉庫存/傳票）")}</h3>
         <ListFilterBar
           partners={partners.data?.filter((p) => p.isCustomer) ?? []}
-          partnerLabel="客戶"
+          partnerLabel={t("客戶")}
           onApply={setOrderFilterQ}
           total={orders.total}
           shown={orders.data?.length ?? 0}
         />
         <table>
           <thead>
-            <tr><th>單號</th><th>日期</th><th>交期</th><th>客戶</th><th>出貨進度</th><th className="num">總額（含稅）</th><th>狀態</th><th></th></tr>
+            <tr><th>{t("單號")}</th><th>{t("日期")}</th><th>{t("交期")}</th><th>{t("客戶")}</th><th>{t("出貨進度")}</th><th className="num">{t("總額（含稅）")}</th><th>{t("狀態")}</th><th></th></tr>
           </thead>
           <tbody>
             {orders.data?.map((o) => {
@@ -546,10 +552,10 @@ export function Orders() {
                 new Date().toISOString().slice(0, 10) > o.expectedDate;
               return (
               <tr key={o.id}>
-                <td>#{o.id}{o.quoteId && <span style={{ fontSize: 12 }}>（報價 #{o.quoteId}）</span>}</td>
+                <td>#{o.id}{o.quoteId && <span style={{ fontSize: 12 }}>{t("（報價 #{id}）", { id: o.quoteId })}</span>}</td>
                 <td>{o.orderDate}</td>
                 <td style={overdue ? { color: "var(--red)", fontWeight: 600 } : undefined}>
-                  {o.expectedDate ?? "—"}{overdue && "（逾期）"}
+                  {o.expectedDate ?? "—"}{overdue && t("（逾期）")}
                 </td>
                 <td>{o.partnerName}</td>
                 <td>
@@ -558,7 +564,7 @@ export function Orders() {
                       {l.productName}：{Number(l.shippedQty)}/{Number(l.qty)}
                       {shippingId === o.id && l.remainingQty > 0 && (
                         <>
-                          {" 出 "}
+                          {" "}{t("出")}{" "}
                           <input
                             type="number"
                             min={0}
@@ -572,40 +578,40 @@ export function Orders() {
                     </div>
                   ))}
                   {o.saleIds.length > 0 && (
-                    <div style={{ fontSize: 12, color: "var(--text-2)" }}>銷貨單：{o.saleIds.map((id) => `#${id}`).join("、")}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-2)" }}>{t("銷貨單：{ids}", { ids: o.saleIds.map((id) => `#${id}`).join("、") })}</div>
                   )}
                 </td>
                 <td className="num">{fmt(o.total)}</td>
                 <td>
                   <span
                     className={`badge ${o.status === "closed" ? "issued" : o.status === "canceled" ? "canceled" : ""}`}
-                    title={o.closeReason ? `短交結案：${o.closeReason}` : undefined}
+                    title={o.closeReason ? t("短交結案：{reason}", { reason: o.closeReason }) : undefined}
                   >
-                    {o.status === "closed" && o.closedAt ? "短交結案" : ORDER_STATUS[o.status]}
+                    {o.status === "closed" && o.closedAt ? t("短交結案") : t(ORDER_STATUS[o.status])}
                   </span>
                   {o.taxType === "2" && (
-                    <span className="badge" title={o.zeroTaxViaCustoms ? "經海關出口" : "非經海關（外匯證明等）"}>零稅率</span>
+                    <span className="badge" title={o.zeroTaxViaCustoms ? t("經海關出口") : t("非經海關（外匯證明等）")}>{t("零稅率")}</span>
                   )}
                 </td>
                 <td>
                   {(o.status === "open" || o.status === "partial") && shippingId !== o.id && (
-                    <button className="small" onClick={() => startShip(o)}>出貨</button>
+                    <button className="small" onClick={() => startShip(o)}>{t("出貨")}</button>
                   )}
                   {shippingId === o.id && (
                     <>
                       <input type="date" value={shipDate} onChange={(e) => setShipDate(e.target.value)} />{" "}
-                      <button className="small" onClick={() => void confirmShip(o)}>確認出貨</button>{" "}
-                      <button className="small" onClick={() => setShippingId(null)}>取消</button>
+                      <button className="small" onClick={() => void confirmShip(o)}>{t("確認出貨")}</button>{" "}
+                      <button className="small" onClick={() => setShippingId(null)}>{t("取消")}</button>
                     </>
                   )}{" "}
                   {o.status === "open" && shippingId !== o.id && (
-                    <button className="small" onClick={() => void act(() => api.post(`/orders/${o.id}/cancel`, {}))}>取消訂單</button>
+                    <button className="small" onClick={() => void act(() => api.post(`/orders/${o.id}/cancel`, {}))}>{t("取消訂單")}</button>
                   )}{" "}
                   {(o.status === "open" || o.status === "partial") && shippingId !== o.id && (
-                    <button className="small" title="到此為止：已出貨的留著，剩餘量不再出" onClick={() => closeOrder(o)}>結案</button>
+                    <button className="small" title={t("到此為止：已出貨的留著，剩餘量不再出")} onClick={() => closeOrder(o)}>{t("結案")}</button>
                   )}{" "}
                   {/* 訂單確認單（B5 尾款）：給客戶簽回——含品項、金額、交期、付款條件 */}
-                  <button className="small" onClick={() => setPrintOrder(o)}>列印</button>
+                  <button className="small" onClick={() => setPrintOrder(o)}>{t("列印")}</button>
                 </td>
               </tr>
               );

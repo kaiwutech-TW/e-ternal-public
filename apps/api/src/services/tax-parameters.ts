@@ -75,25 +75,24 @@ function assertShape(input: TaxParameterInput): void {
     throw new AppError(
       422,
       hasBrackets
-        ? "一列參數只能有一種值：級距與是／否二選一。" +
-            "兩種都填的話取數時無從決定要看哪一個，而那個歧義只會在幾個月後某張單據算錯時才浮出來"
+        ? "一列參數只能有一種值：級距與是／否二選一。兩種都填的話取數時無從決定要看哪一個，而那個歧義只會在幾個月後某張單據算錯時才浮出來"
         : "這一列沒有值：級距型參數請至少填一個級距，是／否型參數請選「是」或「否」",
     );
   }
-  if (!ISO_DATE.test(input.validFrom)) throw new AppError(422, `生效起日須為 YYYY-MM-DD: ${input.validFrom}`);
+  if (!ISO_DATE.test(input.validFrom)) throw new AppError(422, "生效起日須為 YYYY-MM-DD: {value}", { value: input.validFrom });
   if (input.validTo != null) {
-    if (!ISO_DATE.test(input.validTo)) throw new AppError(422, `生效迄日須為 YYYY-MM-DD: ${input.validTo}`);
+    if (!ISO_DATE.test(input.validTo)) throw new AppError(422, "生效迄日須為 YYYY-MM-DD: {value}", { value: input.validTo });
     if (input.validTo < input.validFrom) {
       throw new AppError(
         422,
-        `生效迄日 ${input.validTo} 早於起日 ${input.validFrom}：這一列會永遠解析不到任何日期，` +
-          `而畫面上它看起來跟正常的列一樣。迄日留空代表「仍有效」`,
+        "生效迄日 {to} 早於起日 {from}：這一列會永遠解析不到任何日期，而畫面上它看起來跟正常的列一樣。迄日留空代表「仍有效」",
+        { to: input.validTo, from: input.validFrom },
       );
     }
   }
   if (hasBrackets) {
     const problems = validateBrackets(input.brackets!);
-    if (problems.length > 0) throw new AppError(422, `級距設定有問題：${problems.join("；")}`);
+    if (problems.length > 0) throw new AppError(422, "級距設定有問題：{problems}", { problems: problems.join("；") });
   }
 }
 
@@ -147,12 +146,8 @@ export async function createParameter(db: Db, input: TaxParameterInput, userId: 
     if (latest && input.validFrom < latest.validFrom) {
       throw new AppError(
         422,
-        `新列的生效起日 ${input.validFrom} 早於既有的第 #${latest.id} 列（${latest.validFrom} 起）。` +
-          `參數只能往未來延伸——往回插一列會改變「過去某一天該用哪個值」，` +
-          `等於讓已經算過的年度算不回來。` +
-          `若你正在補建歷史費率，請由舊到新依序新增；` +
-          `若要更正的是既有那一列的值，請新增一列從「更正生效日」起接續，` +
-          `並在依據來源欄寫明更正了哪一列`,
+        "新列的生效起日 {from} 早於既有的第 #{id} 列（{latestFrom} 起）。參數只能往未來延伸——往回插一列會改變「過去某一天該用哪個值」，等於讓已經算過的年度算不回來。若你正在補建歷史費率，請由舊到新依序新增；若要更正的是既有那一列的值，請新增一列從「更正生效日」起接續，並在依據來源欄寫明更正了哪一列",
+        { from: input.validFrom, id: latest.id, latestFrom: latest.validFrom },
       );
     }
 
@@ -167,17 +162,17 @@ export async function createParameter(db: Db, input: TaxParameterInput, userId: 
       const prev = candidates[candidates.length - 1];
       if (!prev) {
         const sameDay = existing.find((r) => r.validFrom === input.validFrom);
+        if (sameDay) {
+          throw new AppError(
+            422,
+            "找不到可接續的前一列：第 #{id} 列的生效起日與新列同為 {from}，接續會把它的迄日設成起日的前一天（期間顛倒）。本表刻意 append-only——舊年度必須算得回來，所以不提供「改掉填錯的那一列」。若這一列從第一天就填錯，請新增一列從「更正生效日」起接續，並在依據來源欄寫明「更正第 #{id} 列」；已依錯誤值建立的單據不會回頭重算，需要更正的請自行判斷處理方式（沖銷重開或手工傳票）",
+            { id: sameDay.id, from: input.validFrom },
+          );
+        }
         throw new AppError(
           422,
-          sameDay
-            ? `找不到可接續的前一列：第 #${sameDay.id} 列的生效起日與新列同為 ${input.validFrom}，` +
-                `接續會把它的迄日設成起日的前一天（期間顛倒）。` +
-                `本表刻意 append-only——舊年度必須算得回來，所以不提供「改掉填錯的那一列」。` +
-                `若這一列從第一天就填錯，請新增一列從「更正生效日」起接續，` +
-                `並在依據來源欄寫明「更正第 #${sameDay.id} 列」；` +
-                `已依錯誤值建立的單據不會回頭重算，需要更正的請自行判斷處理方式（沖銷重開或手工傳票）`
-            : `找不到可接續的前一列（同一種參數在 ${input.validFrom} 之前沒有仍生效的設定）。` +
-                `這是第一列的話請取消「接續前一列」直接新增`,
+          "找不到可接續的前一列（同一種參數在 {from} 之前沒有仍生效的設定）。這是第一列的話請取消「接續前一列」直接新增",
+          { from: input.validFrom },
         );
       }
       const newValidTo = dayBefore(input.validFrom);
@@ -195,10 +190,8 @@ export async function createParameter(db: Db, input: TaxParameterInput, userId: 
     if (conflict) {
       throw new AppError(
         422,
-        `生效期間與第 #${conflict.id} 列「${conflict.label}」（${periodText(conflict)}）重疊。` +
-          `同一種參數在同一天只能有一個值，否則單據要用哪一個沒有答案。` +
-          `若這是新費率取代舊費率，請勾選「接續前一列」——系統會把第 #${conflict.id} 列的迄日` +
-          `設為 ${dayBefore(input.validFrom)}，舊列的值與依據都原樣保留`,
+        "生效期間與第 #{id} 列「{label}」（{period}）重疊。同一種參數在同一天只能有一個值，否則單據要用哪一個沒有答案。若這是新費率取代舊費率，請勾選「接續前一列」——系統會把第 #{id} 列的迄日設為 {dayBefore}，舊列的值與依據都原樣保留",
+        { id: conflict.id, label: conflict.label, period: periodText(conflict), dayBefore: dayBefore(input.validFrom) },
       );
     }
 

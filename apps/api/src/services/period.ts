@@ -32,7 +32,7 @@ export async function closedThrough(db: Db): Promise<string | null> {
 export async function assertPeriodOpen(db: Db, entryDate: string): Promise<void> {
   const through = await closedThrough(db);
   if (through && entryDate.slice(0, 7) <= through) {
-    throw new AppError(409, `${entryDate.slice(0, 7)} 已關帳（帳務關至 ${through}），如需調整請先重開該期間`);
+    throw new AppError(409, "{period} 已關帳（帳務關至 {through}），如需調整請先重開該期間", { period: entryDate.slice(0, 7), through });
   }
 }
 
@@ -57,9 +57,10 @@ export async function assertClaimPeriodsOpen(
     if (item.invoiceDate.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `可扣抵發票（${item.invoiceNumber ?? "?"}）的日期 ${item.invoiceDate} 屬於已關帳期間（帳務關至 ${through}）。` +
-          `進項稅額以發票日期歸入 401 期別，核准會把稅額加進可能已申報的那一期——` +
-          `請先到「報表」頁重開該期間，或把這筆改為不可扣抵`,
+        "可扣抵發票（{invoiceNumber}）的日期 {invoiceDate} 屬於已關帳期間（帳務關至 {through}）。" +
+          "進項稅額以發票日期歸入 401 期別，核准會把稅額加進可能已申報的那一期——" +
+          "請先到「報表」頁重開該期間，或把這筆改為不可扣抵",
+        { invoiceNumber: item.invoiceNumber ?? "?", invoiceDate: item.invoiceDate, through },
       );
     }
   }
@@ -210,7 +211,7 @@ export async function closePeriod(db: Db, period: string, userId: number) {
     const items = await checkPeriod(tx, period);
     const blockers = items.filter((i) => i.blocking && !i.ok);
     if (blockers.length) {
-      throw new AppError(422, `月結檢查未通過：${blockers.map((b) => b.detail).join("；")}`);
+      throw new AppError(422, "月結檢查未通過：{details}", { details: blockers.map((b) => b.detail).join("；") });
     }
     const [row] = await tx.insert(schema.periodCloses).values({ period, closedBy: userId }).returning();
     return { ...row!, checks: items };
@@ -232,7 +233,7 @@ export async function reopenLatest(db: Db) {
       .from(schema.journalEntries)
       .where(and(eq(schema.journalEntries.sourceType, "closing"), eq(schema.journalEntries.sourceId, year)));
     if (closingEntry) {
-      throw new AppError(409, `${year} 年度已結轉（傳票 #${closingEntry.id}），重開該年度期間前請先聯絡記帳士處理結轉分錄`);
+      throw new AppError(409, "{year} 年度已結轉（傳票 #{entryId}），重開該年度期間前請先聯絡記帳士處理結轉分錄", { year, entryId: closingEntry.id });
     }
     await tx.delete(schema.periodCloses).where(eq(schema.periodCloses.id, latest.id));
     return { reopened: latest.period };
@@ -244,13 +245,13 @@ export async function yearClose(db: Db, year: number, _userId: number) {
   return db.transaction(async (tx) => {
     const through = await closedThrough(tx);
     if (!through || through < `${year}-12`) {
-      throw new AppError(422, `年度結轉前須先關帳至 ${year}-12（目前關至 ${through ?? "未關帳"}）`);
+      throw new AppError(422, "年度結轉前須先關帳至 {year}-12（目前關至 {through}）", { year, through: through ?? "未關帳" });
     }
     const [existing] = await tx
       .select()
       .from(schema.journalEntries)
       .where(and(eq(schema.journalEntries.sourceType, "closing"), eq(schema.journalEntries.sourceId, year)));
-    if (existing) throw new AppError(409, `${year} 年度已結轉（傳票 #${existing.id}）`);
+    if (existing) throw new AppError(409, "{year} 年度已結轉（傳票 #{entryId}）", { year, entryId: existing.id });
 
     const rows = await tx
       .select({
@@ -287,10 +288,10 @@ export async function yearClose(db: Db, year: number, _userId: number) {
       lines.push(r.net > 0 ? { accountId, debit: 0, credit: r.net } : { accountId, debit: -r.net, credit: 0 });
       netIncome += -r.net; // 收入貸餘為正貢獻
     }
-    if (!lines.length) throw new AppError(422, `${year} 年度無損益資料可結轉`);
+    if (!lines.length) throw new AppError(422, "{year} 年度無損益資料可結轉", { year });
 
     const [re] = await tx.select().from(schema.accounts).where(eq(schema.accounts.code, RETAINED_EARNINGS_CODE));
-    if (!re) throw new AppError(500, `科目未初始化: ${RETAINED_EARNINGS_CODE}（請重跑 migrate/seed）`);
+    if (!re) throw new AppError(500, "科目未初始化: {code}（請重跑 migrate/seed）", { code: RETAINED_EARNINGS_CODE });
     if (netIncome > 0) lines.push({ accountId: re.id, debit: 0, credit: netIncome });
     else if (netIncome < 0) lines.push({ accountId: re.id, debit: -netIncome, credit: 0 });
 

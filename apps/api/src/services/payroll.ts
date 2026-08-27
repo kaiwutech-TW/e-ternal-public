@@ -57,7 +57,7 @@ export interface SalaryInput {
 
 export async function createSalary(db: Db, input: SalaryInput, userId: number) {
   const [emp] = await db.select().from(schema.employees).where(eq(schema.employees.id, input.employeeId));
-  if (!emp) throw new AppError(404, `員工不存在: ${input.employeeId}`);
+  if (!emp) throw new AppError(404, "員工不存在: {id}", { id: input.employeeId });
   const [dup] = await db
     .select({ id: schema.employeeSalaries.id })
     .from(schema.employeeSalaries)
@@ -70,8 +70,8 @@ export async function createSalary(db: Db, input: SalaryInput, userId: number) {
   if (dup) {
     throw new AppError(
       409,
-      `${emp.name} 已有 ${input.validFrom} 生效的薪資列（#${dup.id}）。薪資檔是歷次紀錄——` +
-        `填錯的話請新增一列從更正生效日起用，並在備註寫明更正了哪一列`,
+      "{name} 已有 {validFrom} 生效的薪資列（#{id}）。薪資檔是歷次紀錄——填錯的話請新增一列從更正生效日起用，並在備註寫明更正了哪一列",
+      { name: emp.name, validFrom: input.validFrom, id: dup.id },
     );
   }
   const [row] = await db
@@ -118,7 +118,7 @@ export async function createOvertimeRate(
   },
 ) {
   if (!(input.dayType in DAY_TYPE_LABELS)) {
-    throw new AppError(422, `日型必須是 ${Object.keys(DAY_TYPE_LABELS).join("/")} 之一（收到「${input.dayType}」）`);
+    throw new AppError(422, "日型必須是 {types} 之一（收到「{raw}」）", { types: Object.keys(DAY_TYPE_LABELS).join("/"), raw: input.dayType });
   }
   const [dup] = await db
     .select({ id: schema.overtimeRates.id })
@@ -126,7 +126,7 @@ export async function createOvertimeRate(
     .where(
       and(eq(schema.overtimeRates.dayType, input.dayType), eq(schema.overtimeRates.fromMinutes, input.fromMinutes)),
     );
-  if (dup) throw new AppError(409, `${DAY_TYPE_LABELS[input.dayType]}第 ${input.fromMinutes} 分鐘起的費率已存在（#${dup.id}），請先刪除再新增`);
+  if (dup) throw new AppError(409, "{dayType}第 {fromMinutes} 分鐘起的費率已存在（#{id}），請先刪除再新增", { dayType: DAY_TYPE_LABELS[input.dayType], fromMinutes: input.fromMinutes, id: dup.id });
   const [row] = await db
     .insert(schema.overtimeRates)
     .values({ ...input, fixedMinutes: input.fixedMinutes ?? null, sourceNote: input.sourceNote ?? "" })
@@ -162,7 +162,7 @@ export function overtimeWeightedMinutes(minutes: number, tiers: OvertimeRateRow[
 export async function deleteOvertimeRate(db: Db, id: number) {
   // 費率表是「之後怎麼算」的政策，可刪——已定案薪資單的計算快照在 detail 裡，動不到
   const [row] = await db.delete(schema.overtimeRates).where(eq(schema.overtimeRates.id, id)).returning();
-  if (!row) throw new AppError(404, `加班費率不存在: ${id}`);
+  if (!row) throw new AppError(404, "加班費率不存在: {id}", { id });
   return { ok: true };
 }
 
@@ -393,13 +393,11 @@ function netOf(i: {
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function createRun(db: Db, month: string, userId: number) {
-  if (!MONTH_RE.test(month)) throw new AppError(400, `月份格式須為 YYYY-MM（收到「${month}」）`);
+  if (!MONTH_RE.test(month)) throw new AppError(400, "月份格式須為 YYYY-MM（收到「{raw}」）", { raw: month });
   const [dup] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.month, month));
   if (dup) {
-    throw new AppError(
-      409,
-      `${month} 已有發薪作業（#${dup.id}，${dup.status === "draft" ? "草稿——要更新數字請用「重算」" : "已定案"}）`,
-    );
+    const state = dup.status === "draft" ? "草稿——要更新數字請用「重算」" : "已定案";
+    throw new AppError(409, "{month} 已有發薪作業（#{id}，{state}）", { month, id: dup.id, state });
   }
   const items = await computePayroll(db, month);
   return db.transaction(async (tx) => {
@@ -432,7 +430,7 @@ function toRow(i: ComputedItem) {
 
 async function requireRun(db: Db, id: number) {
   const [run] = await db.select().from(schema.payrollRuns).where(eq(schema.payrollRuns.id, id));
-  if (!run) throw new AppError(404, `發薪作業不存在: ${id}`);
+  if (!run) throw new AppError(404, "發薪作業不存在: {id}", { id });
   return run;
 }
 
@@ -476,7 +474,7 @@ export async function patchItem(
   input: { otherEarning?: number | undefined; otherDeduction?: number | undefined; memo?: string | undefined },
 ) {
   const [item] = await db.select().from(schema.payrollItems).where(eq(schema.payrollItems.id, itemId));
-  if (!item) throw new AppError(404, `薪資明細不存在: ${itemId}`);
+  if (!item) throw new AppError(404, "薪資明細不存在: {id}", { id: itemId });
   const run = await requireRun(db, item.runId);
   if (run.status !== "draft") throw new AppError(422, "已定案的發薪作業不可調整");
   const merged = {
@@ -532,7 +530,7 @@ export async function finalizeRun(db: Db, id: number, userId: number) {
     const idOf = new Map(accountRows.map((a) => [a.code, a.id]));
     const need = (code: string) => {
       const acctId = idOf.get(code);
-      if (!acctId) throw new AppError(500, `科目未初始化: ${code}（請重跑 migrate/seed）`);
+      if (!acctId) throw new AppError(500, "科目未初始化: {code}（請重跑 migrate/seed）", { code });
       return acctId;
     };
     const [entry] = await tx

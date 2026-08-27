@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, downloadText } from "../api.ts";
+import { useT } from "../i18n.ts";
 
 interface ExportFile {
   name: string;
@@ -28,6 +29,7 @@ const KINDS = [
 ] as const;
 
 export function Exports() {
+  const t = useT();
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(`${today.slice(0, 4)}-01-01`);
   const [to, setTo] = useState(today);
@@ -41,7 +43,7 @@ export function Exports() {
       const file = await api.get<ExportFile>(`/exports/${path}?from=${from}&to=${to}`);
       downloadText(file.name, file.content);
       setError(null);
-      setDone(`已下載 ${file.name}（${file.rows} 筆）`);
+      setDone(t("已下載 {name}（{rows} 筆）", { name: file.name, rows: file.rows }));
     } catch (e) {
       setError((e as Error).message);
       setDone(null);
@@ -59,15 +61,16 @@ export function Exports() {
       setNotes(res.notes ?? []);
       if (res.files.length === 0) {
         setError(null);
-        setDone(`此期間（${from} ～ ${to}）沒有發票或折讓證明單可匯出。`);
+        setDone(t("此期間（{from} ～ {to}）沒有發票或折讓證明單可匯出。", { from, to }));
         return;
       }
       for (const f of res.files) downloadText(f.name, f.content);
       setError(null);
       setDone(
-        `已下載 ${res.files.length} 個 XML 檔（開立 F0401 ${res.invoiceCount} 張、作廢 F0501 ${res.cancelCount} 張、` +
-          `折讓 G0401 ${res.allowanceCount} 張、作廢折讓 G0501 ${res.allowanceCancelCount} 張）。` +
-          "檔名照 MIG 慣例，可直接放入 Turnkey 上傳目錄。",
+        t(
+          "已下載 {n} 個 XML 檔（開立 F0401 {issued} 張、作廢 F0501 {canceled} 張、折讓 G0401 {allowance} 張、作廢折讓 G0501 {allowanceCanceled} 張）。檔名照 MIG 慣例，可直接放入 Turnkey 上傳目錄。",
+          { n: res.files.length, issued: res.invoiceCount, canceled: res.cancelCount, allowance: res.allowanceCount, allowanceCanceled: res.allowanceCancelCount },
+        ),
       );
     } catch (e) {
       setError((e as Error).message);
@@ -80,30 +83,30 @@ export function Exports() {
       {error && <div className="error">{error}</div>}
       <div className="card">
         <form className="inline" onSubmit={(e) => e.preventDefault()}>
-          <label className="field">起日<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label className="field">迄日<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          <label className="field">{t("起日")}<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="field">{t("迄日")}<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
         </form>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>
-          CSV 為 UTF-8 含 BOM，Excel 可直接開啟；金額為整數新台幣元。
+          {t("CSV 為 UTF-8 含 BOM，Excel 可直接開啟；金額為整數新台幣元。")}
         </p>
       </div>
       <div className="card">
         <table>
           <thead>
-            <tr><th>報表</th><th>內容</th><th></th></tr>
+            <tr><th>{t("報表")}</th><th>{t("內容")}</th><th></th></tr>
           </thead>
           <tbody>
             {KINDS.map((k) => (
               <tr key={k.path}>
-                <td>{k.label}</td>
-                <td>{k.note}</td>
-                <td><button className="small" onClick={() => download(k.path)}>下載 CSV</button></td>
+                <td>{t(k.label)}</td>
+                <td>{t(k.note)}</td>
+                <td><button className="small" onClick={() => download(k.path)}>{t("下載 CSV")}</button></td>
               </tr>
             ))}
             <tr>
-              <td>電子發票 XML</td>
-              <td>期間內全部發票的 F0401＋已作廢者的 F0501＋銷貨折讓的 G0401 與已作廢折讓的 G0501（依證明單日期歸期），逐檔下載（檔名照 MIG 慣例，供 Turnkey 上傳）</td>
-              <td><button className="small" onClick={() => void downloadEInvoiceXml()}>下載 XML</button></td>
+              <td>{t("電子發票 XML")}</td>
+              <td>{t("期間內全部發票的 F0401＋已作廢者的 F0501＋銷貨折讓的 G0401 與已作廢折讓的 G0501（依證明單日期歸期），逐檔下載（檔名照 MIG 慣例，供 Turnkey 上傳）")}</td>
+              <td><button className="small" onClick={() => void downloadEInvoiceXml()}>{t("下載 XML")}</button></td>
             </tr>
           </tbody>
         </table>

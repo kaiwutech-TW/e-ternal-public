@@ -55,8 +55,8 @@ async function allocateNumber(tx: Db, period: string): Promise<{ invoiceNumber: 
   if (!track) {
     throw new AppError(
       409,
-      `期別 ${period} 沒有可用的發票號碼（字軌尚未建立或已用完）。` +
-        `請至「設定」頁的「電子發票字軌區間」新增本期核准的區間後再開立`,
+      "期別 {period} 沒有可用的發票號碼（字軌尚未建立或已用完）。請至「設定」頁的「電子發票字軌區間」新增本期核准的區間後再開立",
+      { period },
     );
   }
   await tx
@@ -112,14 +112,14 @@ function assertDonateShape(input: IssueInput): "0" | "1" {
 export async function issueInvoice(db: Db, saleId: number, input: IssueInput) {
   return db.transaction(async (tx) => {
     const [sale] = await tx.select().from(schema.sales).where(eq(schema.sales.id, saleId));
-    if (!sale) throw new AppError(404, `銷貨單不存在: ${saleId}`);
-    if (sale.reversalEntryId) throw new AppError(422, `銷貨單 ${saleId} 已沖銷，不可開立發票`);
+    if (!sale) throw new AppError(404, "銷貨單不存在: {saleId}", { saleId });
+    if (sale.reversalEntryId) throw new AppError(422, "銷貨單 {saleId} 已沖銷，不可開立發票", { saleId });
     // 僅擋 issued：作廢後可重開（同銷貨單多張 canceled ＋ 至多一張 issued）
     const [existing] = await tx
       .select()
       .from(schema.invoices)
       .where(and(eq(schema.invoices.saleId, saleId), eq(schema.invoices.status, "issued")));
-    if (existing) throw new AppError(409, `銷貨單 ${saleId} 已開立發票 ${existing.invoiceNumber}`);
+    if (existing) throw new AppError(409, "銷貨單 {saleId} 已開立發票 {invoiceNumber}", { saleId, invoiceNumber: existing.invoiceNumber });
 
     // 捐贈／載具的形狀檢查（0029）放在配號之前：讓 buildF0401 去炸的話是 500，
     // 而且 rollback 前已消耗一個字軌號碼
@@ -134,16 +134,15 @@ export async function issueInvoice(db: Db, saleId: number, input: IssueInput) {
     if (through && sale.docDate.slice(0, 7) <= through) {
       throw new AppError(
         409,
-        `銷貨單 ${saleId} 的日期 ${sale.docDate} 屬於已關帳期間（帳務關至 ${through}），` +
-          `開立發票會改掉該期間（可能已申報）的銷項數字。` +
-          `請改以當期日期另開一張銷貨單再開立發票，或先重開該期間並同步處理已申報的 401`,
+        "銷貨單 {saleId} 的日期 {docDate} 屬於已關帳期間（帳務關至 {through}），開立發票會改掉該期間（可能已申報）的銷項數字。請改以當期日期另開一張銷貨單再開立發票，或先重開該期間並同步處理已申報的 401",
+        { saleId, docDate: sale.docDate, through },
       );
     }
 
     const company = await requireCompany(tx);
     const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, sale.partnerId));
-    if (!partner) throw new AppError(404, `交易對象不存在: ${sale.partnerId}`);
-    if (input.mode === "B2B" && !partner.taxId) throw new AppError(422, `B2B 發票需要買方統編: ${partner.name}`);
+    if (!partner) throw new AppError(404, "交易對象不存在: {partnerId}", { partnerId: sale.partnerId });
+    if (input.mode === "B2B" && !partner.taxId) throw new AppError(422, "B2B 發票需要買方統編: {name}", { name: partner.name });
 
     const rawLines = await tx
       .select({
@@ -299,26 +298,25 @@ export interface DisposalIssueInput extends IssueInput {
  */
 export async function issueDisposalInvoiceCore(tx: Db, assetId: number, input: DisposalIssueInput) {
   const [asset] = await tx.select().from(schema.fixedAssets).where(eq(schema.fixedAssets.id, assetId));
-  if (!asset) throw new AppError(404, `資產不存在: ${assetId}`);
-  if (asset.voidedAt) throw new AppError(409, `資產 #${assetId}（${asset.name}）已作廢登錄，沒有可開立發票的處分`);
+  if (!asset) throw new AppError(404, "資產不存在: {assetId}", { assetId });
+  if (asset.voidedAt) throw new AppError(409, "資產 #{assetId}（{name}）已作廢登錄，沒有可開立發票的處分", { assetId, name: asset.name });
   if (asset.status !== "disposed" || !asset.disposedAt) {
     throw new AppError(
       422,
-      `資產 #${assetId}（${asset.name}）目前不是已處分狀態——處分發票開的是「處分」這筆銷售，` +
-        `請先執行處分（處分表單可同時勾選開立發票）`,
+      "資產 #{assetId}（{name}）目前不是已處分狀態——處分發票開的是「處分」這筆銷售，請先執行處分（處分表單可同時勾選開立發票）",
+      { assetId, name: asset.name },
     );
   }
   const proceeds = asset.disposalProceeds ?? 0;
   const tax = asset.disposalTax ?? 0;
   if (proceeds <= 0) {
-    throw new AppError(422, `資產 #${assetId}（${asset.name}）的處分價款為 0（報廢），沒有銷售額，不需開立發票`);
+    throw new AppError(422, "資產 #{assetId}（{name}）的處分價款為 0（報廢），沒有銷售額，不需開立發票", { assetId, name: asset.name });
   }
   if (tax <= 0) {
     throw new AppError(
       422,
-      `資產 #${assetId}（${asset.name}）的處分未計銷項稅額（處分時選了不計稅）。` +
-        `本系統發票模組僅支援應稅發票——確屬應稅請先作廢處分、以計稅重新處分後再開立；` +
-        `免稅等其他情形請以外部方式開立並自行併入申報`,
+      "資產 #{assetId}（{name}）的處分未計銷項稅額（處分時選了不計稅）。本系統發票模組僅支援應稅發票——確屬應稅請先作廢處分、以計稅重新處分後再開立；免稅等其他情形請以外部方式開立並自行併入申報",
+      { assetId, name: asset.name },
     );
   }
   // 僅擋 issued：作廢後可重開（同一筆處分多張 canceled ＋ 至多一張 issued，DB 有 partial unique index）
@@ -326,7 +324,7 @@ export async function issueDisposalInvoiceCore(tx: Db, assetId: number, input: D
     .select()
     .from(schema.invoices)
     .where(and(eq(schema.invoices.assetId, assetId), eq(schema.invoices.status, "issued")));
-  if (existing) throw new AppError(409, `資產 #${assetId} 的處分已開立發票 ${existing.invoiceNumber}`);
+  if (existing) throw new AppError(409, "資產 #{assetId} 的處分已開立發票 {invoiceNumber}", { assetId, invoiceNumber: existing.invoiceNumber });
 
   const donateMark = assertDonateShape(input);
 
@@ -335,15 +333,15 @@ export async function issueDisposalInvoiceCore(tx: Db, assetId: number, input: D
   if (through && asset.disposedAt.slice(0, 7) <= through) {
     throw new AppError(
       409,
-      `資產 #${assetId} 的處分日 ${asset.disposedAt} 屬於已關帳期間（帳務關至 ${through}），` +
-        `開立發票會改掉該期間（可能已申報）的銷項數字。請先重開該期間並同步處理已申報的 401`,
+      "資產 #{assetId} 的處分日 {disposedAt} 屬於已關帳期間（帳務關至 {through}），開立發票會改掉該期間（可能已申報）的銷項數字。請先重開該期間並同步處理已申報的 401",
+      { assetId, disposedAt: asset.disposedAt, through },
     );
   }
 
   const company = await requireCompany(tx);
   const [partner] = await tx.select().from(schema.partners).where(eq(schema.partners.id, input.partnerId));
-  if (!partner) throw new AppError(404, `交易對象不存在: ${input.partnerId}`);
-  if (input.mode === "B2B" && !partner.taxId) throw new AppError(422, `B2B 發票需要買方統編: ${partner.name}`);
+  if (!partner) throw new AppError(404, "交易對象不存在: {partnerId}", { partnerId: input.partnerId });
+  if (input.mode === "B2B" && !partner.taxId) throw new AppError(422, "B2B 發票需要買方統編: {name}", { name: partner.name });
 
   // 費率快照：處分當時解析到的（0034 落地）；舊處分無快照才退回依處分日解析並出聲
   const vat = await rateFromSnapshot(tx, asset.disposalVatRateBp, asset.disposedAt);
@@ -452,8 +450,8 @@ export async function cancelInvoice(
 ) {
   return db.transaction(async (tx) => {
     const [invoice] = await tx.select().from(schema.invoices).where(eq(schema.invoices.id, invoiceId));
-    if (!invoice) throw new AppError(404, `發票不存在: ${invoiceId}`);
-    if (invoice.status === "canceled") throw new AppError(409, `發票已作廢: ${invoice.invoiceNumber}`);
+    if (!invoice) throw new AppError(404, "發票不存在: {invoiceId}", { invoiceId });
+    if (invoice.status === "canceled") throw new AppError(409, "發票已作廢: {invoiceNumber}", { invoiceNumber: invoice.invoiceNumber });
     const company = await requireCompany(tx);
 
     const cancelDate = input.cancelDate ?? new Date().toISOString().slice(0, 10);
@@ -474,13 +472,13 @@ export async function cancelInvoice(
     const through = await closedThrough(tx);
     if (through && invoice.invoiceDate.slice(0, 7) <= through) {
       // 出路依來源不同：銷貨發票有「退回／折讓以當期認列」這條路，處分發票沒有下一層單據
-      const wayOut = invoice.saleId
-        ? `若貨已退回或雙方議價，請改開「退貨／折讓」單以當期認列；確定要作廢請先重開該期間，並同步處理已申報的 401`
-        : `確定要作廢請先重開該期間，並同步處理已申報的 401`;
+      const params = { invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate, through };
       throw new AppError(
         409,
-        `發票 ${invoice.invoiceNumber} 的發票日期 ${invoice.invoiceDate} 屬於已關帳期間` +
-          `（帳務關至 ${through}），作廢會改掉該期間（可能已申報）的銷項數字。${wayOut}`,
+        invoice.saleId
+          ? "發票 {invoiceNumber} 的發票日期 {invoiceDate} 屬於已關帳期間（帳務關至 {through}），作廢會改掉該期間（可能已申報）的銷項數字。若貨已退回或雙方議價，請改開「退貨／折讓」單以當期認列；確定要作廢請先重開該期間，並同步處理已申報的 401"
+          : "發票 {invoiceNumber} 的發票日期 {invoiceDate} 屬於已關帳期間（帳務關至 {through}），作廢會改掉該期間（可能已申報）的銷項數字。確定要作廢請先重開該期間，並同步處理已申報的 401",
+        params,
       );
     }
     await assertPeriodOpen(tx, cancelDate);
@@ -510,8 +508,8 @@ export async function cancelInvoice(
       if (!invoice.saleId) {
         throw new AppError(
           422,
-          `發票 ${invoice.invoiceNumber} 是處分發票（資產 #${invoice.assetId}），沒有銷貨單可沖銷——` +
-            `要連動沖回處分請帶 reverseDisposal`,
+          "發票 {invoiceNumber} 是處分發票（資產 #{assetId}），沒有銷貨單可沖銷——要連動沖回處分請帶 reverseDisposal",
+          { invoiceNumber: invoice.invoiceNumber, assetId: invoice.assetId },
         );
       }
       await assertPeriodOpen(tx, cancelDate);
@@ -525,8 +523,8 @@ export async function cancelInvoice(
       if (!invoice.assetId) {
         throw new AppError(
           422,
-          `發票 ${invoice.invoiceNumber} 是銷貨發票（銷貨單 #${invoice.saleId}），沒有資產處分可沖回——` +
-            `要連動沖銷銷貨單請帶 reverseSale`,
+          "發票 {invoiceNumber} 是銷貨發票（銷貨單 #{saleId}），沒有資產處分可沖回——要連動沖銷銷貨單請帶 reverseSale",
+          { invoiceNumber: invoice.invoiceNumber, saleId: invoice.saleId },
         );
       }
       // 發票已在本交易內標為 canceled，核心不再撞「先廢發票」的守門（那道守門在獨立作廢入口）

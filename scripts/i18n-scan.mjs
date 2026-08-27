@@ -2,7 +2,7 @@
 /**
  * i18n 掃描（零相依）：
  *   node scripts/i18n-scan.mjs            → 報告
- *   node scripts/i18n-scan.mjs --strict   → 有孤兒 key 就 exit 1（給 CI）
+ *   node scripts/i18n-scan.mjs --strict   → 有孤兒 key 或跨字典衝突就 exit 1（給 CI）
  *
  * 報三件事：
  * 1. 孤兒 key：字典裡有、程式碼裡沒有任何 t("…")／AppError(…, "…") 用到——通常是中文原句改了字
@@ -29,15 +29,36 @@ function walk(dir, out = []) {
   }
   return out;
 }
-/** 讀 locales/en/ 底下所有字典檔的 key（以及 locales/en.ts 本身） */
+/** 讀 locales/en/ 底下所有字典檔的 key（以及 locales/en.ts 本身）；同時收集每個 key 在各檔的值，供衝突偵測 */
+const dictValues = new Map(); // key -> Map(file -> value)
 function dictKeys(dir) {
   const keys = new Set();
   const files = [join(dir, "en.ts"), ...readdirSync(join(dir, "en")).map((f) => join(dir, "en", f))];
   for (const file of files) {
     const src = readFileSync(file, "utf8");
-    for (const m of src.matchAll(/^\s*"((?:[^"\\]|\\.)*)":\s*"/gm)) keys.add(m[1].replace(/\\"/g, '"'));
+    for (const m of src.matchAll(/^\s*"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)"/gm)) {
+      const k = m[1].replace(/\\"/g, '"');
+      keys.add(k);
+      if (!dictValues.has(k)) dictValues.set(k, new Map());
+      dictValues.get(k).set(relative(ROOT, file), m[2]);
+    }
   }
   return keys;
+}
+/** 同一 key 在多份字典有**不同**英文：index 用 spread 合併，後者無聲蓋掉前者——列出來讓人統一 */
+function reportConflicts(label) {
+  const rows = [];
+  for (const [k, byFile] of dictValues) {
+    const distinct = new Set(byFile.values());
+    if (distinct.size > 1) rows.push([k, byFile]);
+  }
+  console.log(`\n== ${label} 跨字典衝突（同 key 不同值，後 spread 者勝）：${rows.length} ==`);
+  for (const [k, byFile] of rows) {
+    console.log(`  「${k}」`);
+    for (const [f, v] of byFile) console.log(`     ${f.split("/").pop().padEnd(24)} ${v}`);
+  }
+  dictValues.clear();
+  return rows.length;
 }
 // t("…") / t('…') / AppError(NNN, "…")
 const USE_RE = /(?:\bt\(|(?:AppError|fail)\(\s*\d+\s*,\s*)\s*(["'])((?:(?!\1)[^\\]|\\.)*)\1/g;
@@ -46,7 +67,10 @@ function scan(label, srcDir, dictDir) {
   const dict = dictKeys(join(ROOT, dictDir));
   const used = new Map(); // key -> files
   for (const f of walk(join(ROOT, srcDir))) {
-    const src = readFileSync(f, "utf8");
+    // `"…" +\n "…"` 拼接的字面值：runtime key 是整句，這裡先合併再比對（否則只看到第一段、誤報未翻）
+    const src = readFileSync(f, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "") // 區塊註解裡的範例不是 key
+      .replace(/"\s*\+\s*\n?\s*"/g, "");
     for (const m of src.matchAll(USE_RE)) {
       const k = m[2].replace(/\\(["'])/g, "$1");
       if (!used.has(k)) used.set(k, new Set());
@@ -71,8 +95,11 @@ function scan(label, srcDir, dictDir) {
 }
 
 let orphanTotal = 0;
+let conflictTotal = 0;
 orphanTotal += scan("apps/web", "apps/web/src", "apps/web/src/locales");
+conflictTotal += reportConflicts("apps/web");
 orphanTotal += scan("apps/api", "apps/api/src", "apps/api/src/locales");
+conflictTotal += reportConflicts("apps/api");
 if (emitPath) {
   writeFileSync(emitPath, JSON.stringify(emitted, null, 2) + "\n");
   console.log(`\n未翻 key 已寫到 ${emitPath}（${Object.keys(emitted).length} 個來源檔）`);
@@ -95,4 +122,4 @@ rows.sort((a, b) => b[1] - a[1]);
 for (const [f, n] of rows) console.log(`  ${String(n).padStart(4)}  ${f}`);
 console.log(`  總計 ${rows.reduce((s, r) => s + r[1], 0)} 行`);
 
-if (strict && orphanTotal > 0) process.exit(1);
+if (strict && (orphanTotal > 0 || conflictTotal > 0)) process.exit(1);

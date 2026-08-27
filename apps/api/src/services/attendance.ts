@@ -178,11 +178,11 @@ export async function setSchedules(
   },
 ) {
   const [shift] = await db.select().from(schema.shifts).where(eq(schema.shifts.id, input.shiftId));
-  if (!shift) throw new AppError(404, `班別不存在: ${input.shiftId}`);
-  if (!shift.active) throw new AppError(422, `班別已停用: ${shift.code} ${shift.name}`);
+  if (!shift) throw new AppError(404, "班別不存在: {id}", { id: input.shiftId });
+  if (!shift.active) throw new AppError(422, "班別已停用: {code} {name}", { code: shift.code, name: shift.name });
   const days = spanDays(input.from, input.to);
   if (days.length > 92) {
-    throw new AppError(422, `一次最多排 92 天（本次 ${days.length} 天）——請確認起迄日期沒打錯，要更長請分次`);
+    throw new AppError(422, "一次最多排 92 天（本次 {n} 天）——請確認起迄日期沒打錯，要更長請分次", { n: days.length });
   }
   const weekdaySet = input.weekdays?.length ? new Set(input.weekdays) : null;
   const targets = days.filter((d) => !weekdaySet || weekdaySet.has(isoWeekday(d)));
@@ -203,7 +203,7 @@ export async function setSchedules(
 }
 
 function spanDays(from: string, to: string): string[] {
-  if (to < from) throw new AppError(422, `迄日（${to}）不可早於起日（${from}）`);
+  if (to < from) throw new AppError(422, "迄日（{to}）不可早於起日（{from}）", { to, from });
   const out: string[] = [];
   for (let d = from; d <= to; d = addDaysStr(d, 1)) out.push(d);
   return out;
@@ -333,7 +333,7 @@ export interface EmployeeMonthSummary {
  * （payroll_items.detail），彙總本身要永遠反映最新的核准單與補卡。
  */
 export async function monthlySummary(db: Db, month: string): Promise<EmployeeMonthSummary[]> {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new AppError(400, `月份格式須為 YYYY-MM（收到「${month}」）`);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new AppError(400, "月份格式須為 YYYY-MM（收到「{month}」）", { month });
   const from = `${month}-01`;
   const days: string[] = [];
   for (let d = from; d.slice(0, 7) === month; d = addDaysStr(d, 1)) days.push(d);

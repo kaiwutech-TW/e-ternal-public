@@ -1,4 +1,25 @@
 import type { Dictionary } from "@tw-erp/core";
 
 export const recurringPayables: Dictionary = {
+  "週期性支出不存在: {id}": "Recurring payable not found: {id}",
+  "這筆週期性支出沒有這一期: {id}": "This recurring payable has no such installment: {id}",
+  "請填「依據」：這筆錢為什麼是這個金額、這個頻率，來源是什麼（合約條款、帳單、你查到的規定）。系統不預設任何金額或頻率，也不判斷你該不該付——這一欄是你自己的紀錄": "Please fill in \"Basis\": why this amount and this frequency, and where it comes from (a contract clause, a bill, a rule you looked up). The system does not assume any amount or frequency and does not judge whether you should pay — this field is your own record",
+  "結束日（{endDate}）不可早於開始日（{startDate}）": "End date ({endDate}) cannot be earlier than the start date ({startDate})",
+  "會計科目不存在: {code}": "Account not found: {code}",
+  "會計科目 {code} 已停用": "Account {code} is inactive",
+  "「依據」不可清空——沒有出處的週期性支出，下一個看到它的人（包括你自己）無從判斷對不對": "\"Basis\" cannot be cleared — without a source, the next person to see this recurring payable (including you) has no way to judge whether it is right",
+  "未提供要修改的欄位": "No fields to update were provided",
+  "展開到 {limit} 早於開始月（{from}）": "Generate-through month {limit} is earlier than the start month ({from})",
+  "一次最多展開 {max} 期（本次會展開 {count} 期）——請確認年份沒有打錯；真的要更長請分次展開": "At most {max} installments can be generated at once (this would generate {count}) — check the year is correct; for a longer span, generate in batches",
+  "每期金額必須大於 0——請先在這筆週期性支出上填「每期金額」再展開": "Amount per installment must be greater than 0 — set \"Amount per installment\" on this recurring payable before generating",
+  "第 {seq} 期已結清，金額與日期以那張單為準。要改請先解除結清": "Installment {seq} is already settled; its amount and date follow the linked document. Unsettle it first to make changes",
+  "第 {seq} 期已結清，不能刪除。要取消這期請先解除結清": "Installment {seq} is already settled and cannot be deleted. Unsettle it first to cancel it",
+  "第 {seq} 期已結清。要換一張請先解除結清": "Installment {seq} is already settled. Unsettle it first to link a different document",
+  "請指定一張報銷單或一張傳票（兩者擇一）——一期只能對一張單": "Specify either an expense claim or a journal voucher (not both) — each installment links to exactly one document",
+  "報銷單不存在: {id}": "Expense claim not found: {id}",
+  "報銷單 #{id} 已作廢，不能用來結清": "Expense claim #{id} has been voided and cannot be used to settle",
+  "報銷單 #{id} 已結清在第 {seq} 期。一張單只能對一期": "Expense claim #{id} already settles installment {seq}. A document can only be linked to one installment",
+  "傳票不存在: {id}": "Journal voucher not found: {id}",
+  "傳票 #{id} 已結清在第 {seq} 期。一張單只能對一期": "Journal voucher #{id} already settles installment {seq}. A document can only be linked to one installment",
+  "第 {seq} 期沒有結清紀錄": "Installment {seq} has no settlement record",
 };
