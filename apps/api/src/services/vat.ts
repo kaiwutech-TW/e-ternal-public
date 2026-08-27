@@ -11,6 +11,7 @@ import {
 import { schema } from "@tw-erp/db";
 import { and, desc, eq, gt, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { decryptPii } from "./pii.ts";
 import { rateFromSnapshot } from "./tax-parameters.ts";
 
@@ -477,8 +478,11 @@ export async function generate401(
     carryoverSource = "manual";
     if (prevRecord && prevRecord.carryForward !== prevCarryForward) {
       carryoverNotes.push(
-        `手動輸入的上期留抵 ${prevCarryForward} 元與上期（${prevPeriod}）申報紀錄的期末留抵 ` +
-          `${prevRecord.carryForward} 元不一致——請確認以哪一個為準（申報紀錄在「營業稅申報」頁下方）。`,
+        tr("手動輸入的上期留抵 {manual} 元與上期（{prevPeriod}）申報紀錄的期末留抵 {filed} 元不一致——請確認以哪一個為準（申報紀錄在「營業稅申報」頁下方）。", {
+          manual: prevCarryForward,
+          prevPeriod,
+          filed: prevRecord.carryForward,
+        }),
       );
     }
   } else if (prevRecord) {
@@ -490,11 +494,8 @@ export async function generate401(
     const [anyRecord] = await db.select().from(schema.vatReturns).limit(1);
     carryoverNotes.push(
       anyRecord
-        ? `找不到上期（${prevPeriod}）的申報紀錄，上期累積留抵以 0 帶入——但系統裡有其他期別的` +
-            `申報紀錄，留抵承轉在這裡斷了鏈。請確認上期是否漏存，或在畫面手動輸入正確的上期留抵。`
-        : `找不到上期（${prevPeriod}）的申報紀錄，上期累積留抵（申報書代號 108）以 0 帶入。` +
-            `第一次用本系統申報屬正常；若上期實際有留抵，請在畫面輸入金額後重新產出。` +
-            `本期申報完成後按「存為申報紀錄」，下期即可自動承轉。`,
+        ? tr("找不到上期（{prevPeriod}）的申報紀錄，上期累積留抵以 0 帶入——但系統裡有其他期別的申報紀錄，留抵承轉在這裡斷了鏈。請確認上期是否漏存，或在畫面手動輸入正確的上期留抵。", { prevPeriod })
+        : tr("找不到上期（{prevPeriod}）的申報紀錄，上期累積留抵（申報書代號 108）以 0 帶入。第一次用本系統申報屬正常；若上期實際有留抵，請在畫面輸入金額後重新產出。本期申報完成後按「存為申報紀錄」，下期即可自動承轉。", { prevPeriod }),
     );
   }
 
@@ -507,8 +508,7 @@ export async function generate401(
   const filerNotes: string[] = [];
   if (!company.filerName || !filerIdNo) {
     filerNotes.push(
-      "申報人姓名或身分證統一編號未設定，申報書第 99-103 欄將是空白——請到「設定」頁的" +
-        "公司基本檔填寫申報人資料（委託記帳士申報則另填代理申報人登錄字號）。",
+      tr("申報人姓名或身分證統一編號未設定，申報書第 99-103 欄將是空白——請到「設定」頁的公司基本檔填寫申報人資料（委託記帳士申報則另填代理申報人登錄字號）。"),
     );
   }
 
@@ -561,11 +561,10 @@ export async function generate401(
     notes:
       invDateFallbackItems.length > 0
         ? [
-            `本期有 ${invDateFallbackItems.length} 張進貨單（#${invDateFallbackItems
-              .map((i) => i.purchaseId)
-              .join("、#")}）沒登錄供應商發票日期，進項歸期以進貨單日期代替。` +
-              `發票開立月份與進貨月份不同時，會與賣方申報的期別勾稽不符——` +
-              `請到「進貨」頁按「改發票資訊」補上發票日期後重新產出本期申報檔。`,
+            tr(
+              "本期有 {n} 張進貨單（#{ids}）沒登錄供應商發票日期，進項歸期以進貨單日期代替。發票開立月份與進貨月份不同時，會與賣方申報的期別勾稽不符——請到「進貨」頁按「改發票資訊」補上發票日期後重新產出本期申報檔。",
+              { n: invDateFallbackItems.length, ids: invDateFallbackItems.map((i) => i.purchaseId).join("、#") },
+            ),
           ]
         : [],
   };
@@ -578,22 +577,20 @@ export async function generate401(
   if (zeroMissingCertItems.length > 0) {
     const missingSum = zeroMissingCertItems.reduce((s, i) => s + i.subtotal, 0);
     zeroNotes.push(
-      `本期有 ${zeroMissingCertItems.length} 筆零稅率銷貨（合計 ${missingSum} 元）還沒登錄證明文件號碼` +
-        `（經海關＝出口報單號碼；非經海關＝外匯證明文件號碼等）。金額已列入申報書的零稅率銷售額，` +
-        `但申報零稅率需檢附證明文件——請到「銷貨」頁補登號碼，或確認該單是否真為零稅率。`,
+      tr(
+        "本期有 {n} 筆零稅率銷貨（合計 {sum} 元）還沒登錄證明文件號碼（經海關＝出口報單號碼；非經海關＝外匯證明文件號碼等）。金額已列入申報書的零稅率銷售額，但申報零稅率需檢附證明文件——請到「銷貨」頁補登號碼，或確認該單是否真為零稅率。",
+        { n: zeroMissingCertItems.length, sum: missingSum },
+      ),
     );
   }
   if (zeroNonCustoms + zeroCustoms > 0) {
     zeroNotes.push(
-      "零稅率銷售額已列入申報書（代號 7／15／19／23）。得退稅限額與應退稅額（代號 113／114）" +
-        "本系統不計算（其計算規則未經規格書查證），一律填 0＝溢付稅額全額留抵到下期；" +
-        "若要申請退稅，請以財政部申報軟體匯入後的計算為準。",
+      tr("零稅率銷售額已列入申報書（代號 7／15／19／23）。得退稅限額與應退稅額（代號 113／114）本系統不計算（其計算規則未經規格書查證），一律填 0＝溢付稅額全額留抵到下期；若要申請退稅，請以財政部申報軟體匯入後的計算為準。"),
     );
   }
   if (records.some((r) => r.taxType === "2")) {
     zeroNotes.push(
-      "媒體檔中零稅率銷項明細的「通關方式註記」（第 81 碼）未填——該欄的代號值未經作業要點原文核對" +
-        "（見 docs/specs/vat-401-403.md 未決問題），匯入財政部申報軟體後請依實際通關方式補正。",
+      tr("媒體檔中零稅率銷項明細的「通關方式註記」（第 81 碼）未填——該欄的代號值未經作業要點原文核對（見 docs/specs/vat-401-403.md 未決問題），匯入財政部申報軟體後請依實際通關方式補正。"),
     );
   }
 

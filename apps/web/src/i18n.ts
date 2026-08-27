@@ -39,8 +39,11 @@ export function setLocale(locale: Locale): void {
   window.dispatchEvent(new Event(EVENT));
 }
 
+const TITLE: Record<Locale, string> = { "zh-TW": "E-ternal｜E直在線 ERP", en: "E-ternal ERP" };
+
 export function applyLocale(locale: Locale = getLocale()): void {
   document.documentElement.lang = HTML_LANG[locale];
+  document.title = TITLE[locale];
 }
 
 /** 非 hook 版：讀當下偏好求值一次（React 樹外用） */

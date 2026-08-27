@@ -31,6 +31,7 @@ import {
 import { schema } from "@tw-erp/db";
 import { and, asc, eq, gte, inArray, isNull, lte, sql as sqlExpr } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { assertNotFarFuture } from "./dates.ts";
 import { assertPeriodOpen } from "./period.ts";
 
@@ -168,23 +169,25 @@ function resolveAmounts(
     if (given === undefined) {
       if (estimated === null) {
         notes.push(
-          `「${category.label}」尚未設定${label}費率，本單的${label}以 0 計。` +
-            `請到扣繳設定填入你查到的費率並在來源欄註明依據；已建立的單據不會回頭重算。`,
+          tr("「{category}」尚未設定{label}費率，本單的{label}以 0 計。請到扣繳設定填入你查到的費率並在來源欄註明依據；已建立的單據不會回頭重算。", {
+            category: category.label,
+            label,
+          }),
         );
         return 0;
       }
       return estimated;
     }
     if (estimated !== null && estimated !== given) {
-      notes.push(`${label}已覆寫試算值（依費率試算 ${estimated} 元，實填 ${given} 元）。`);
+      notes.push(tr("{label}已覆寫試算值（依費率試算 {estimated} 元，實填 {given} 元）。", { label, estimated, given }));
     }
     if (estimated === null) {
-      notes.push(`「${category.label}」尚未設定${label}費率，本單的 ${given} 元為你自行填入的金額。`);
+      notes.push(tr("「{category}」尚未設定{label}費率，本單的 {given} 元為你自行填入的金額。", { category: category.label, label, given }));
     }
     return given;
   };
-  const taxWithheld = resolve(input.taxWithheld, category.taxRateBp, "扣繳稅款");
-  const supplementWithheld = resolve(input.supplementWithheld, category.supplementRateBp, "補充保費");
+  const taxWithheld = resolve(input.taxWithheld, category.taxRateBp, tr("扣繳稅款"));
+  const supplementWithheld = resolve(input.supplementWithheld, category.supplementRateBp, tr("補充保費"));
   const netAmount = input.grossAmount - taxWithheld - supplementWithheld;
   if (netAmount < 0) {
     throw new AppError(

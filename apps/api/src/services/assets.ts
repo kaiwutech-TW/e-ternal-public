@@ -27,6 +27,7 @@ import {
 import { schema } from "@tw-erp/db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { assertMonthNotFuture, assertNotFarFuture } from "./dates.ts";
 import { issueDisposalInvoiceCore, type DisposalIssueInput } from "./invoices.ts";
 import { assertPeriodOpen } from "./period.ts";
@@ -208,13 +209,15 @@ export async function updateAsset(db: Db, assetId: number, patch: AssetPatch) {
         const accumulated = deps.reduce((s, d) => s + d.amount, 0);
         const why =
           deps.length > 0
-            ? `已提折舊 ${deps.length} 期（累計 ${accumulated} 元）——已提各期的金額是按登錄時的成本／殘值／年限算的，` +
-              `改了這些基礎資料，那些折舊傳票就成了無法解釋的數字`
-            : "已處分——處分損益是按登錄資料算的，帳已定案";
+            ? tr("已提折舊 {n} 期（累計 {accumulated} 元）——已提各期的金額是按登錄時的成本／殘值／年限算的，改了這些基礎資料，那些折舊傳票就成了無法解釋的數字", {
+                n: deps.length,
+                accumulated,
+              })
+            : tr("已處分——處分損益是按登錄資料算的，帳已定案");
         throw new AppError(
           422,
           "資產 #{id}（{name}）{why}。目前只可修改：名稱、備註（這次要改的「{fields}」不在其中）。若登錄確實有誤：要讓資產下帳請走「處分」（價款 0＝報廢），折舊差額請以手工傳票調整",
-          { id: assetId, name: asset.name, why, fields: blocked.map((k) => PATCH_FIELD_LABELS[k] ?? k).join("、") },
+          { id: assetId, name: asset.name, why, fields: blocked.map((k) => tr(PATCH_FIELD_LABELS[k] ?? k)).join("、") },
         );
       }
     }
@@ -368,11 +371,9 @@ interface DisposalPlan {
 
 /** 401 銷項取數來源是發票清單：計稅處分不開發票就進不了 401，這句提醒在試算與未開票的處分都要出聲 */
 function invoiceReminder(netProceeds: number, tax: number): string {
-  return (
-    `處分價款已拆為未稅 ${netProceeds} 元＋銷項稅額 ${tax} 元（貸 ${ACCOUNT.OUTPUT_TAX} 銷項稅額）。` +
-    `401 的銷項取數來源是發票清單，這筆處分要開立統一發票才會進 401——` +
-    `可在處分時一併開立（處分表單的「開立發票」），或事後於資產頁對這筆處分補開；` +
-    `不在本系統開立者，請自行確認該期申報涵蓋這筆銷項`
+  return tr(
+    "處分價款已拆為未稅 {netProceeds} 元＋銷項稅額 {tax} 元（貸 {code} 銷項稅額）。401 的銷項取數來源是發票清單，這筆處分要開立統一發票才會進 401——可在處分時一併開立（處分表單的「開立發票」），或事後於資產頁對這筆處分補開；不在本系統開立者，請自行確認該期申報涵蓋這筆銷項",
+    { netProceeds, tax, code: ACCOUNT.OUTPUT_TAX },
   );
 }
 
@@ -593,7 +594,10 @@ export async function disposeAsset(db: Db, assetId: number, input: DisposalInput
     const notes = [...taxNotes];
     if (input.invoice) {
       invoice = await issueDisposalInvoiceCore(tx, assetId, input.invoice);
-      notes.push(...invoice.taxNotes, `已開立發票 ${invoice.invoiceNumber}（買受人 ${invoice.buyerName}），401 銷項將自動涵蓋這筆處分`);
+      notes.push(
+        ...invoice.taxNotes,
+        tr("已開立發票 {invoiceNumber}（買受人 {buyerName}），401 銷項將自動涵蓋這筆處分", { invoiceNumber: invoice.invoiceNumber, buyerName: invoice.buyerName }),
+      );
     } else if (tax > 0) {
       notes.push(invoiceReminder(netProceeds, tax));
     }

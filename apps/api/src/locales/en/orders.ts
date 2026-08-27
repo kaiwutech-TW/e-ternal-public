@@ -22,4 +22,6 @@ export const orders: Dictionary = {
     "Order #{orderId} was short-closed on {closedAt} (reason: {reason}) and cannot be closed again",
   "訂單 #{orderId} 已全數出清、自動結案，不需再結案": "Order #{orderId} was fully shipped and closed automatically; no further close is needed",
   "訂單 #{orderId} 已取消（取消＝這張單從沒發生），沒有可結案的內容": "Order #{orderId} is canceled (canceled = as if it never happened); there is nothing to close",
+  "有 {n} 張未收銷貨單沒有收款到期日（客戶未約定付款條件，或是到期日功能上線前的舊單），改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補客戶的付款條件天數（之後的新單自動帶入）": "{n} unpaid sales invoices have no due date (the customer has no payment terms, or the invoice predates the due-date feature), so the document date is used instead and the first 30 days are not counted as overdue. For accurate aging buckets, add the customer's payment terms (days) on the Customers & Products page; new invoices will pick them up automatically",
+  "有 {n} 張未付進貨單沒有付款到期日（供應商未約定付款條件，或是到期日功能上線前的舊單），改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補供應商的付款條件天數（之後的新單自動帶入）": "{n} unpaid purchase invoices have no due date (the supplier has no payment terms, or the invoice predates the due-date feature), so the document date is used instead and the first 30 days are not counted as overdue. For accurate aging buckets, add the supplier's payment terms (days) on the Customers & Products page; new invoices will pick them up automatically",
 };

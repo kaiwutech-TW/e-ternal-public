@@ -6,4 +6,6 @@ export const opening: Dictionary = {
   "{name} 不是客戶，不能建期初應收（請先到「客戶與商品」頁勾選為客戶）": "{name} is not a customer, so an opening receivable cannot be created (mark them as a customer on the Customers & Products page first)",
   "{name} 不是供應商，不能建期初應付（請先到「客戶與商品」頁勾選為供應商）": "{name} is not a supplier, so an opening payable cannot be created (mark them as a supplier on the Customers & Products page first)",
   "應收/應付或累積盈虧科目未初始化（請重跑 migrate/seed）": "Accounts receivable/payable or retained earnings account is not initialized (re-run migrate/seed)",
+  "原單日期": "original document date",
+  "付款到期日": "payment due date",
 };

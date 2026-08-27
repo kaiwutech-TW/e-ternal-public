@@ -10,4 +10,11 @@ export const common: Dictionary = {
   "期間格式須為 YYYY-MM": "Period must be in YYYY-MM format",
   "科目未初始化: {code}": "Account not initialized: {code}",
   "{code} {name} 不是現金科目，不能當付款科目（若這是銀行帳戶，請到「會計科目」頁把它勾選為現金科目，付出的錢才會進現金流量表）": "{code} {name} is not a cash account and cannot be used as the payment account (if this is a bank account, mark it as a cash account on the Chart of Accounts page so payments flow into the cash flow statement)",
+  "合約待付款": "Contract payment due",
+  "合約待請款": "Contract billing due",
+  "{title}（{counterparty}）第 {seq} 期{description}": "{title} ({counterparty}) installment {seq}{description}",
+  "固定支出": "Recurring payable",
+  "{name} 第 {seq} 期{partner}": "{name} installment {seq}{partner}",
+  "合約快到期": "Contract expiring soon",
+  "{title}（{counterparty}）——你設定的提前提醒 {days} 天": "{title} ({counterparty}) — your reminder lead time is {days} days",
 };

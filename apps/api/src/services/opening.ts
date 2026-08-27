@@ -15,6 +15,7 @@ import { ACCOUNT } from "@tw-erp/core";
 import { schema } from "@tw-erp/db";
 import { desc, eq } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { allocatedByTarget } from "./balances.ts";
 import { assertDateOrder } from "./dates.ts";
 import { assertPeriodOpen } from "./period.ts";
@@ -37,8 +38,8 @@ export async function createOpeningBalance(db: Db, input: OpeningBalanceInput, u
     await assertPeriodOpen(tx, input.entryDate);
     // R2：到期日早於原單日一定是打錯（與銷貨/進貨的 dueDate 同一條規則）
     assertDateOrder(
-      { date: input.docDate, label: "原單日期" },
-      { date: input.dueDate, label: "付款到期日" },
+      { date: input.docDate, label: tr("原單日期") },
+      { date: input.dueDate, label: tr("付款到期日") },
     );
     if (input.docDate > input.entryDate) {
       throw new AppError(

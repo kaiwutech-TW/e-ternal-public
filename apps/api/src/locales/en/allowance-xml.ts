@@ -11,4 +11,7 @@ export const allowanceXml: Dictionary = {
   "折讓單 #{id} 作廢前沒有登錄過證明單號碼與日期，表示從未產出 G0401——沒有開立訊息就沒有要作廢的對外訊息，帳務面的作廢已經完成，不需要 G0501": "Allowance note #{id} had no certificate number or date recorded before it was voided, meaning G0401 was never produced. With no issue message there is nothing to void externally; the accounting void is already complete and no G0501 is needed",
   "折讓單 #{id} 沒有記錄作廢理由（資料異常，請聯絡管理者）——G0501 的 CancelReason 必填": "Allowance note #{id} has no void reason recorded (data inconsistency, contact an admin). CancelReason is required in G0501",
   "折讓單 #{id} 的原銷貨單 #{saleId} 沒有任何電子發票紀錄，取不到買方統編，產不出 G0501（這張折讓的證明單若是以外部工具開立的，其作廢也請在原開立工具處理）": "The original sales invoice #{saleId} for allowance note #{id} has no e-invoice record, so the buyer's Tax ID is unavailable and G0501 cannot be generated (if this allowance certificate was issued with an external tool, void it there as well)",
+  "折讓單 #{id}（原銷貨單 #{saleId}、折讓日 {docDate}）還沒登錄證明單{what}，這次沒有產出 G0401。請到銷貨頁的「退貨／折讓紀錄」補登後重新匯出": "Allowance note #{id} (sales invoice #{saleId}, allowance date {docDate}) has no certificate {what} yet, so no G0401 was generated this time. Add it under \"Returns / Allowances\" on the Sales page and export again",
+  "日期": "date",
+  "號碼與日期": "number and date",
 };

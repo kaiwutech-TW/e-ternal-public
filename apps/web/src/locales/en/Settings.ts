@@ -147,7 +147,7 @@ export const Settings: Dictionary = {
   "期初應收（客戶欠我）": "Opening receivable (customer owes us)",
   "期初應付（我欠供應商）": "Opening payable (we owe supplier)",
   "客戶": "Customer",
-  "供應商": "Supplier",
+  "模型供應商": "Provider",
   "開帳日（傳票日期）": "Opening date (voucher date)",
   "原單日期（帳齡起算）": "Original document date (aging starts here)",
   "到期日（未約定可不填）": "Due date (optional)",

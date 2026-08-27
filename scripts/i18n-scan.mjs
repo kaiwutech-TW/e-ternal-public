@@ -61,7 +61,7 @@ function reportConflicts(label) {
   return rows.length;
 }
 // t("…") / t('…') / AppError(NNN, "…")
-const USE_RE = /(?:\bt\(|(?:AppError|fail)\(\s*\d+\s*,\s*)\s*(["'])((?:(?!\1)[^\\]|\\.)*)\1/g;
+const USE_RE = /(?:\bt(?:r)?\(|(?:AppError|fail)\(\s*\d+\s*,\s*)\s*(["'])((?:(?!\1)[^\\]|\\.)*)\1/g;
 
 function scan(label, srcDir, dictDir) {
   const dict = dictKeys(join(ROOT, dictDir));

@@ -156,4 +156,15 @@ export const app: Dictionary = {
   "合約不存在: {id}": "Contract not found: {id}",
   "這份合約已有 {n} 期對上單據，不能改方向。請先作廢銷貨單／解除勾對後再改":
     "This contract already has {n} installments matched to documents, so its direction cannot be changed. Void the sales invoices or unmatch them first",
+  "API 金鑰無 session 可登出": "API keys have no session to log out of",
+  "{code} {name} 目前的類別（{typeLabel}）與代號首碼不符，應為 {allowedLabels}。這個科目的金額在損益表／資產負債表上會歸錯區，年度結轉也可能不結清它——尚未入帳的話請直接改類別，已入帳的請停用後另建正確代號的科目": "The current type of {code} {name} ({typeLabel}) does not match its code prefix; it should be {allowedLabels}. Its amounts will land in the wrong section of the income statement / balance sheet and the year-end close may not clear it — change the type if nothing is posted yet; otherwise deactivate it and create a new account with the correct code",
+  " 或 ": " or ",
+  "{code} {name} 停用時仍有餘額 {balance} 元。餘額不會消失（報表照樣列示），但此科目已不再出現在傳票與收付款的下拉選單，若要把餘額轉到別的科目，請先開一張手工傳票再停用": "{code} {name} still has a balance of NT${balance} at deactivation. The balance does not disappear (reports still show it), but this account no longer appears in the journal voucher and receipts & payments dropdowns; to move the balance to another account, post a manual journal voucher before deactivating",
+  "{code} {name} 是預設科目表內建的科目，它的「現金科目」設定會在下次系統啟動時校正回預設值（{defaultLabel}）。要自訂現金帳戶請另建一個科目（例如 1104 銀行存款－玉山）並勾選現金科目": "{code} {name} is a built-in account from the default chart of accounts; its \"cash account\" setting will be reset to the default ({defaultLabel}) the next time the system starts. To add a custom cash account, create a new account (e.g. 1104 Bank deposits - E.SUN) and mark it as a cash account",
+  "現金科目": "cash account",
+  "非現金科目": "non-cash account",
+  "合約生效日": "contract start date",
+  "合約截止日": "contract end date",
+  "新約生效日": "new contract start date",
+  "新約截止日": "new contract end date",
 };

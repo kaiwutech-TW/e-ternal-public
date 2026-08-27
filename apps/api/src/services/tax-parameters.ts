@@ -31,6 +31,7 @@ import {
 import { schema } from "@tw-erp/db";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 
 /** 系統自己會去讀的 kind。使用者仍可自訂其他 kind（維護頁依 kind 分組列出） */
 export const TAX_PARAMETER_KINDS = {
@@ -260,10 +261,10 @@ function fallbackResolution(reason: string): VatRateResolution {
     parameterId: null,
     fallback: true,
     notes: [
-      `${reason}本單暫以系統既有的預設值計稅。` +
-        `這個預設值是本系統在「稅法參數」功能出現前一直在用的那個數字，` +
-        `**不是本專案查證的結果**——請到「稅法參數」頁新增一列營業稅率，填入你查到的費率與依據來源。` +
-        `補設參數不會回頭重算已建立的單據。`,
+      tr(
+        "{reason}本單暫以系統既有的預設值計稅。這個預設值是本系統在「稅法參數」功能出現前一直在用的那個數字，**不是本專案查證的結果**——請到「稅法參數」頁新增一列營業稅率，填入你查到的費率與依據來源。補設參數不會回頭重算已建立的單據。",
+        { reason },
+      ),
     ],
   };
 }
@@ -284,17 +285,19 @@ export async function resolveVatRate(db: Db, onDate: string): Promise<VatRateRes
     .from(schema.taxParameters)
     .where(eq(schema.taxParameters.kind, TAX_PARAMETER_KINDS.VAT));
   const hit = resolveParameter(rows, TAX_PARAMETER_KINDS.VAT, onDate, null);
-  if (!hit) return fallbackResolution(`找不到生效期間涵蓋 ${onDate} 的營業稅率設定，`);
+  if (!hit) return fallbackResolution(tr("找不到生效期間涵蓋 {onDate} 的營業稅率設定，", { onDate }));
   if (!hit.brackets) {
-    return fallbackResolution(`營業稅率設定第 #${hit.id} 列沒有級距內容（可能是是／否型的參數放錯 kind），`);
+    return fallbackResolution(tr("營業稅率設定第 #{id} 列沒有級距內容（可能是是／否型的參數放錯 kind），", { id: hit.id }));
   }
   const rateBp = flatRateBp(hit.brackets);
   if (rateBp === null) {
     // 使用者填了多段級距（例如某種查定課徵的形狀）。進銷貨流程接的是單一費率，
     // 這裡默默取第一段會算出一個看起來很正常卻沒人說得出來歷的稅額
     return fallbackResolution(
-      `營業稅率設定第 #${hit.id} 列「${hit.label}」不是單一費率（有多個級距，或最上層的計算方式不是「全額課」），` +
-        `而進銷貨與發票流程只接得上單一費率，`,
+      tr("營業稅率設定第 #{id} 列「{label}」不是單一費率（有多個級距，或最上層的計算方式不是「全額課」），而進銷貨與發票流程只接得上單一費率，", {
+        id: hit.id,
+        label: hit.label,
+      }),
     );
   }
   return { rateBp, rate: rateBp / BP_PER_UNIT, parameterId: hit.id, fallback: false, notes: [] };
@@ -371,8 +374,10 @@ export async function rateFromSnapshot(
     ...resolved,
     notes: [
       ...resolved.notes,
-      `這張單據沒有費率快照（建立於本功能之前），稅額是依 ${fallbackDate} 重新解析參數推導的——` +
-        `若參數在那之後被新增或接續過，推導結果可能與當初入帳的金額不一致。`,
+      tr(
+        "這張單據沒有費率快照（建立於本功能之前），稅額是依 {fallbackDate} 重新解析參數推導的——若參數在那之後被新增或接續過，推導結果可能與當初入帳的金額不一致。",
+        { fallbackDate },
+      ),
     ],
   };
 }

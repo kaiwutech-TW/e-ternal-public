@@ -21,6 +21,7 @@ import { schema } from "@tw-erp/db";
 import { parseEInvoiceLeftQr } from "@tw-erp/einvoice";
 import { and, asc, count, countDistinct, desc, eq, gte, inArray, isNull, lte, ne, sql, sum } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import type { AuthUser } from "./auth.ts";
 import { assertNotFarFuture } from "./dates.ts";
 import type { ListFilter } from "./list.ts";
@@ -200,10 +201,9 @@ async function resolveCompanyTaxId(db: Db): Promise<string | null> {
  * ⚠️ 零斷言：只講結構事實與**系統做了什麼**，不說「依法不可扣抵」，也不評價這張憑證。
  */
 function buyerMismatchNote(invoiceNumber: string, buyerTaxId: string | null): string {
-  return (
-    `發票 ${invoiceNumber} 的 QR 上，買方統編是${buyerTaxId ?? "「未打統編」（規格以全 0 表示）"}，` +
-    `與公司基本檔的統編不同——系統不把這筆算進可扣抵的進項稅額（不進 401 的進項），稅額以 0 元落地。` +
-    `若這張憑證確實是開給本公司的，請向賣方索取買方統編正確的憑證再報銷`
+  return tr(
+    "發票 {invoiceNumber} 的 QR 上，買方統編是{buyer}，與公司基本檔的統編不同——系統不把這筆算進可扣抵的進項稅額（不進 401 的進項），稅額以 0 元落地。若這張憑證確實是開給本公司的，請向賣方索取買方統編正確的憑證再報銷",
+    { invoiceNumber, buyer: buyerTaxId ?? tr("「未打統編」（規格以全 0 表示）") },
   );
 }
 
@@ -217,10 +217,9 @@ function buyerMismatchNote(invoiceNumber: string, buyerTaxId: string | null): st
  * 措辭寫一次：建單／重送的回應與詳情頁（rebuildTaxNotes）共用同一句。
  */
 function companyTaxIdMissingNote(deductibleCount: number, taxTotal: number): string {
-  return (
-    `公司基本檔還沒填統編，系統無從核對憑證上的買方統編是不是本公司——` +
-    `這張單有 ${deductibleCount} 筆明細以可扣抵落地（進項稅額合計 ${taxTotal} 元），` +
-    `是照明細上的主張走的，這道核對沒有跑過。請到「公司基本檔」填上統編`
+  return tr(
+    "公司基本檔還沒填統編，系統無從核對憑證上的買方統編是不是本公司——這張單有 {n} 筆明細以可扣抵落地（進項稅額合計 {taxTotal} 元），是照明細上的主張走的，這道核對沒有跑過。請到「公司基本檔」填上統編",
+    { n: deductibleCount, taxTotal },
   );
 }
 
@@ -284,7 +283,7 @@ async function prepareItems(
   // 查重是 read-then-write：先把這張單用到的號碼一次全鎖起來（順序固定，見 lockInvoiceNumbers）
   await lockInvoiceNumbers(tx, inputs.map((i) => i.invoiceNumber));
   for (const [index, item] of inputs.entries()) {
-    const at = `第 ${index + 1} 筆明細`;
+    const at = tr("第 {n} 筆明細", { n: index + 1 });
     const category = CATEGORY_BY_CODE.get(item.accountCode);
     if (!category) throw new AppError(422, "報銷分類不存在: {code}", { code: item.accountCode });
     // 可扣抵性以**報銷單日期**解析生效期間（單據的歸屬日期就是它，核准傳票也記在這一天）
@@ -355,7 +354,7 @@ async function prepareItems(
          * 擋在這裡，訊息指的是**憑證上那一欄**：使用者是照著掃到的東西填的，該去看的是那張照片。
          *（明細自己填的發票日期在上面已經驗過；兩者相等時是那一道先擋下。）
          */
-        assertRealDate(qr.invoiceDate, `${at}：掃到的 QR 上的開立日期`);
+        assertRealDate(qr.invoiceDate, tr("{at}：掃到的 QR 上的開立日期", { at }));
         /**
          * 交叉核對：解析出來的四個欄位必須與這筆明細送上來的欄位相符。
          * 這道檢查才是「稅額來自這張憑證」的定義——少了它，QR 只是一串可以隨便挑的數字，
@@ -364,17 +363,18 @@ async function prepareItems(
          */
         const mismatches: string[] = [];
         const check = (label: string, fromQr: string | number, filled: string | number | undefined) => {
-          if (fromQr !== filled) mismatches.push(`${label}（QR 是 ${fromQr}、這筆填的是 ${filled ?? "空白"}）`);
+          if (fromQr !== filled) mismatches.push(tr("{label}（QR 是 {fromQr}、這筆填的是 {filled}）", { label, fromQr, filled: filled ?? tr("空白") }));
         };
-        check("發票號碼", qr.invoiceNumber, item.invoiceNumber);
-        check("發票日期", qr.invoiceDate, item.invoiceDate);
-        check("賣方統編", qr.sellerTaxId, item.sellerTaxId);
-        check("總計額", qr.totalAmount, item.amount);
+        check(tr("發票號碼"), qr.invoiceNumber, item.invoiceNumber);
+        check(tr("發票日期"), qr.invoiceDate, item.invoiceDate);
+        check(tr("賣方統編"), qr.sellerTaxId, item.sellerTaxId);
+        check(tr("總計額"), qr.totalAmount, item.amount);
         if (mismatches.length > 0) {
           conflicts.push({
-            text:
-              `${at}：掃到的發票 QR 與這筆填的內容對不起來——${mismatches.join("、")}。` +
-              `進項稅額是從這張憑證導出來的，欄位對不起來就不能算：請重新上傳這張憑證的照片（掃完 QR 之後又改過欄位嗎？）`,
+            text: tr(
+              "{at}：掃到的發票 QR 與這筆填的內容對不起來——{mismatches}。進項稅額是從這張憑證導出來的，欄位對不起來就不能算：請重新上傳這張憑證的照片（掃完 QR 之後又改過欄位嗎？）",
+              { at, mismatches: mismatches.join("、") },
+            ),
             detail: { kind: "qr_mismatch", lineIndex: index },
           });
         } else {
@@ -395,9 +395,10 @@ async function prepareItems(
               // QR 自己的兩個欄位就對不起來。放行的話「總額 − 銷售額」是負數，
               // 一筆負的進項稅會一路無聲進 401，沒有任何畫面看得出來
               conflicts.push({
-                text:
-                  `${at}：發票 ${item.invoiceNumber} 的 QR 上，銷售額 ${qr.salesAmount} 元大於總計額 ${qr.totalAmount} 元——` +
-                  `這張 QR 自己的兩個欄位對不起來，系統不敢從它導出進項稅額。請重新上傳這張憑證的照片`,
+                text: tr(
+                  "{at}：發票 {invoiceNumber} 的 QR 上，銷售額 {salesAmount} 元大於總計額 {totalAmount} 元——這張 QR 自己的兩個欄位對不起來，系統不敢從它導出進項稅額。請重新上傳這張憑證的照片",
+                  { at, invoiceNumber: item.invoiceNumber, salesAmount: qr.salesAmount, totalAmount: qr.totalAmount },
+                ),
                 detail: { kind: "qr_mismatch", lineIndex: index },
               });
             } else {
@@ -427,7 +428,7 @@ async function prepareItems(
      * 422 那條路尤其嚴重：AppError 只帶一個字串，不接上去診斷就整個掉了。
      * 落地那條路不必再接一次——上面的 notes.push(...vat.notes) 已經把同一句話帶到同一個地方。
      */
-    const fallbackNote = vat.fallback ? `（注意：${vat.notes.join(" ")}）` : "";
+    const fallbackNote = vat.fallback ? tr("（注意：{notes}）", { notes: vat.notes.join(" ") }) : "";
     /**
      * 稅額的兩個來源（W2）。費率回推一直都在，但它是**系統依使用者設定的費率算出來的**；
      * 電子發票 QR 左碼另外載了一個銷售額（未稅），總額減掉它就是憑證自己載明的稅額。
@@ -477,12 +478,10 @@ async function prepareItems(
         // ⚠️ 零斷言：只講**結構事實**（哪個數字超過哪個數字、系統採用了哪一個），
         //    不說「稅率應該是多少」，也不說這張憑證合不合法
         notes.push(
-          `發票 ${item.invoiceNumber} 的憑證所載稅額 ${voucherTax} 元` +
-            `（總額 ${item.amount} − 憑證上的銷售額 ${voucherSalesAmount}），` +
-            `超過依你設定的營業稅率回推的 ${rateTax} 元。` +
-            `系統不採用超出你自己參數所隱含的數字，這筆以 ${rateTax} 元落地。` +
-            `若你認為憑證上的數字是對的，請先檢查「稅法參數」頁的營業稅率設定。` +
-            fallbackNote,
+          tr(
+            "發票 {invoiceNumber} 的憑證所載稅額 {voucherTax} 元（總額 {amount} − 憑證上的銷售額 {voucherSalesAmount}），超過依你設定的營業稅率回推的 {rateTax} 元。系統不採用超出你自己參數所隱含的數字，這筆以 {rateTax} 元落地。若你認為憑證上的數字是對的，請先檢查「稅法參數」頁的營業稅率設定。{fallbackNote}",
+            { invoiceNumber: item.invoiceNumber, voucherTax, amount: item.amount, voucherSalesAmount, rateTax, fallbackNote },
+          ),
         );
         // 使用者若明確選了 'rate'，落地的就是他選的那個；選 'voucher' 的沒有落地，不記成他的選擇
         landedSource = requestedSource === "rate" ? "rate" : null;
@@ -491,12 +490,10 @@ async function prepareItems(
           // 兩個數字給前端做按鈕用的是 detail（結構化），訊息文字可以自由改、也會被翻譯
           conflicts.push({
             detail: { kind: "tax_source_conflict", lineIndex: index, invoiceNumber: item.invoiceNumber, voucherTax, rateTax },
-            text:
-              `${at}：發票 ${item.invoiceNumber} 的進項稅額有兩個來源、算出來的數字不一樣：` +
-              `憑證所載的銷售額回推＝${voucherTax} 元（總額 ${item.amount} − 憑證上的銷售額 ${voucherSalesAmount}）；` +
-              `你設定的稅率回推＝${rateTax} 元（總額 ${item.amount} − 依你在「稅法參數」頁設定的營業稅率換算出的未稅額）。` +
-              fallbackNote +
-              `哪一個數字進 401 是你的判斷，系統不替你選：請指定這筆明細要用哪一個來源，再送出一次`,
+            text: tr(
+              "{at}：發票 {invoiceNumber} 的進項稅額有兩個來源、算出來的數字不一樣：憑證所載的銷售額回推＝{voucherTax} 元（總額 {amount} − 憑證上的銷售額 {voucherSalesAmount}）；你設定的稅率回推＝{rateTax} 元（總額 {amount} − 依你在「稅法參數」頁設定的營業稅率換算出的未稅額）。{fallbackNote}哪一個數字進 401 是你的判斷，系統不替你選：請指定這筆明細要用哪一個來源，再送出一次",
+              { at, invoiceNumber: item.invoiceNumber, voucherTax, amount: item.amount, voucherSalesAmount, rateTax, fallbackNote },
+            ),
           });
         } else {
           const chosen = requestedSource === "voucher" ? voucherTax : rateTax;
@@ -504,10 +501,17 @@ async function prepareItems(
           // 出聲管道沿用 taxNotes（與費率回退同一條）：使用者做過的選擇要在畫面上留下痕跡，
           // 否則「這張單的稅額為什麼是這個數字」下個月就沒人答得出來
           notes.push(
-            `發票 ${item.invoiceNumber} 的進項稅額兩個來源不一致：憑證所載的銷售額回推＝${voucherTax} 元、` +
-              `你設定的稅率回推＝${rateTax} 元。已依你指定的` +
-              `「${requestedSource === "voucher" ? "憑證所載的銷售額回推" : "你設定的稅率回推"}」落地 ${chosen} 元，` +
-              `另一個（未採用）是 ${other} 元。`,
+            tr(
+              "發票 {invoiceNumber} 的進項稅額兩個來源不一致：憑證所載的銷售額回推＝{voucherTax} 元、你設定的稅率回推＝{rateTax} 元。已依你指定的「{source}」落地 {chosen} 元，另一個（未採用）是 {other} 元。",
+              {
+                invoiceNumber: item.invoiceNumber,
+                voucherTax,
+                rateTax,
+                source: requestedSource === "voucher" ? tr("憑證所載的銷售額回推") : tr("你設定的稅率回推"),
+                chosen,
+                other,
+              },
+            ),
           );
           tax = chosen;
           landedSource = requestedSource;
@@ -967,10 +971,10 @@ function rebuildTaxNotes(
     }
     if (item.taxSource === "voucher") {
       notes.push(
-        `發票 ${invoiceNumber} 的進項稅額 ${item.tax} 元出自憑證所載的銷售額回推` +
-          `（總額 ${item.amount} − 憑證上的銷售額 ${qr.salesAmount}）。` +
-          `依營業稅率回推的那個數字沒有隨單存下來，這裡不重算——重算會跟著之後改過的稅率參數跑，` +
-          `就不是當初入帳的那個數字了`,
+        tr(
+          "發票 {invoiceNumber} 的進項稅額 {tax} 元出自憑證所載的銷售額回推（總額 {amount} − 憑證上的銷售額 {salesAmount}）。依營業稅率回推的那個數字沒有隨單存下來，這裡不重算——重算會跟著之後改過的稅率參數跑，就不是當初入帳的那個數字了",
+          { invoiceNumber, tax: item.tax, amount: item.amount, salesAmount: qr.salesAmount },
+        ),
       );
       continue;
     }
@@ -979,8 +983,11 @@ function rebuildTaxNotes(
     const voucherTax = item.amount - qr.salesAmount;
     if (voucherTax !== item.tax) {
       notes.push(
-        `發票 ${invoiceNumber} 的進項稅額 ${item.tax} 元出自依營業稅率回推；` +
-          `這張憑證自己載明的銷售額回推是 ${voucherTax} 元（未採用）`,
+        tr("發票 {invoiceNumber} 的進項稅額 {tax} 元出自依營業稅率回推；這張憑證自己載明的銷售額回推是 {voucherTax} 元（未採用）", {
+          invoiceNumber,
+          tax: item.tax,
+          voucherTax,
+        }),
       );
     }
   }

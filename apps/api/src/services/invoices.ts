@@ -12,6 +12,7 @@ import {
 import { schema } from "@tw-erp/db";
 import { and, asc, eq, lte } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { assertDateOrder, assertNotFarFuture } from "./dates.ts";
 import { assertPeriodOpen, closedThrough } from "./period.ts";
 import { rateFromSnapshot } from "./tax-parameters.ts";
@@ -260,8 +261,7 @@ export async function issueInvoice(db: Db, saleId: number, input: IssueInput) {
     const trackNotes =
       remaining < TRACK_LOW_THRESHOLD
         ? [
-            `本期（${period}）發票號碼只剩 ${remaining} 張可開，用完後將無法開立發票。` +
-              `請儘早至「設定」頁的「電子發票字軌區間」新增區間`,
+            tr("本期（{period}）發票號碼只剩 {remaining} 張可開，用完後將無法開立發票。請儘早至「設定」頁的「電子發票字軌區間」新增區間", { period, remaining }),
           ]
         : [];
     // 零稅率單缺證明文件號碼：開發票這條路徑也要出聲（0028）——發票開得出來，
@@ -269,9 +269,7 @@ export async function issueInvoice(db: Db, saleId: number, input: IssueInput) {
     const zeroNotes =
       zeroRated && !sale.zeroTaxCertNo
         ? [
-            `這張發票的銷貨單 #${saleId} 是零稅率、但還沒登錄證明文件號碼` +
-              `（經海關＝出口報單號碼；非經海關＝外匯證明文件號碼等）。` +
-              `取得後請到銷貨頁補登，申報零稅率銷售額需以證明文件為依據。`,
+            tr("這張發票的銷貨單 #{saleId} 是零稅率、但還沒登錄證明文件號碼（經海關＝出口報單號碼；非經海關＝外匯證明文件號碼等）。取得後請到銷貨頁補登，申報零稅率銷售額需以證明文件為依據。", { saleId }),
           ]
         : [];
     return { ...invoice!, trackRemaining: remaining, taxNotes: [...vat.notes, ...trackNotes, ...zeroNotes] };
@@ -423,8 +421,7 @@ export async function issueDisposalInvoiceCore(tx: Db, assetId: number, input: D
   const trackNotes =
     remaining < TRACK_LOW_THRESHOLD
       ? [
-          `本期（${period}）發票號碼只剩 ${remaining} 張可開，用完後將無法開立發票。` +
-            `請儘早至「設定」頁的「電子發票字軌區間」新增區間`,
+          tr("本期（{period}）發票號碼只剩 {remaining} 張可開，用完後將無法開立發票。請儘早至「設定」頁的「電子發票字軌區間」新增區間", { period, remaining }),
         ]
       : [];
   return { ...invoice!, trackRemaining: remaining, taxNotes: [...vat.notes, ...trackNotes] };
@@ -458,8 +455,8 @@ export async function cancelInvoice(
     // R2：作廢日早於開立日，F0501 會帶著 CancelDate < InvoiceDate 上傳，reverseSale 的
     // 迴轉傳票更會落在原交易發生前——純 UI 操作就可能踩到（銷貨單可開在未來、作廢預設今天）
     assertDateOrder(
-      { date: invoice.invoiceDate, label: "發票開立日期" },
-      { date: cancelDate, label: "作廢日期" },
+      { date: invoice.invoiceDate, label: tr("發票開立日期") },
+      { date: cancelDate, label: tr("作廢日期") },
     );
     assertNotFarFuture(cancelDate, "作廢日期");
     // 「僅作廢」路徑原本完全沒有鎖帳檢查：作廢是就地改 invoices.status，而 401 依 invoice_date 歸期、

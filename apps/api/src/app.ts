@@ -41,7 +41,7 @@ import {
 } from "./services/agent-settings.ts";
 import { createApiKey, listApiKeys, revokeApiKey, userFromApiKey } from "./services/api-keys.ts";
 import { resolveLlm, runAgentChat, type LlmCall } from "./services/agent-chat.ts";
-import { localeOf, translateFor } from "./i18n.ts";
+import { localeMiddleware, localeOf, tr, translateFor } from "./i18n.ts";
 import { guideIndex, readGuide } from "./services/agent-guides.ts";
 import {
   approveMemory,
@@ -676,6 +676,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
    * 因為「Hono 內部是否已把錯誤接住並填好 c.res」是框架實作細節，
    * 押在上面的話某次升版就會靜默漏掉所有 4xx——而漏掉的當下沒有任何徵兆。
    */
+  // 語言上下文（AsyncLocalStorage）：必須在所有會組回應文字的 middleware／路由之前
+  app.use("*", localeMiddleware);
   app.use("*", async (c, next) => {
     const path = normalizePath(c.req.path);
     if (!shouldAudit(c.req.method, path)) return next();
@@ -799,7 +801,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // 以 API 金鑰呼叫時沒有 session 可登出——回 200 而不是炸掉，因為「登出」對它是無操作。
     // 要停掉一把金鑰請用 DELETE /api-keys/:id（登出不該能撤銷金鑰：那是管理者的動作）
     const sessionToken = c.get("sessionToken");
-    if (!sessionToken) return c.json({ ok: true, note: "API 金鑰無 session 可登出" });
+    if (!sessionToken) return c.json({ ok: true, note: tr("API 金鑰無 session 可登出") });
     await logout(db, sessionToken);
     // 刪除用的 Set-Cookie 屬性要與當初種下時一致，否則瀏覽器當成另一顆 cookie 而不刪
     deleteCookie(c, SESSION_COOKIE, { path: "/", secure: isHttps(c), sameSite: "Lax" });
@@ -1332,10 +1334,15 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     const allowed = allowedTypesForCode(row!.code);
     if (allowed.length > 0 && !allowed.includes(row!.type)) {
       warnings.push(
-        `${row!.code} ${row!.name} 目前的類別（${ACCOUNT_TYPE_LABEL[row!.type]}）與代號首碼不符，` +
-          `應為 ${allowed.map((t) => ACCOUNT_TYPE_LABEL[t]).join(" 或 ")}。` +
-          `這個科目的金額在損益表／資產負債表上會歸錯區，年度結轉也可能不結清它——` +
-          `尚未入帳的話請直接改類別，已入帳的請停用後另建正確代號的科目`,
+        tr(
+          "{code} {name} 目前的類別（{typeLabel}）與代號首碼不符，應為 {allowedLabels}。這個科目的金額在損益表／資產負債表上會歸錯區，年度結轉也可能不結清它——尚未入帳的話請直接改類別，已入帳的請停用後另建正確代號的科目",
+          {
+            code: row!.code,
+            name: row!.name,
+            typeLabel: ACCOUNT_TYPE_LABEL[row!.type],
+            allowedLabels: allowed.map((t) => ACCOUNT_TYPE_LABEL[t]).join(tr(" 或 ")),
+          },
+        ),
       );
     }
     // 停用有餘額的科目不阻擋（整理科目表是正當需求，且餘額還在資產負債表上），但要講出來：
@@ -1344,9 +1351,10 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       const { balance } = await accountEntryStats(id, row!.type);
       if (balance !== 0) {
         warnings.push(
-          `${row!.code} ${row!.name} 停用時仍有餘額 ${balance.toLocaleString("zh-TW")} 元。` +
-            `餘額不會消失（報表照樣列示），但此科目已不再出現在傳票與收付款的下拉選單，` +
-            `若要把餘額轉到別的科目，請先開一張手工傳票再停用`,
+          tr(
+            "{code} {name} 停用時仍有餘額 {balance} 元。餘額不會消失（報表照樣列示），但此科目已不再出現在傳票與收付款的下拉選單，若要把餘額轉到別的科目，請先開一張手工傳票再停用",
+            { code: row!.code, name: row!.name, balance: balance.toLocaleString("zh-TW") },
+          ),
         );
       }
     }
@@ -1354,9 +1362,10 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // 不擋（要試就讓他試），但一定要說，否則使用者會以為設定生效、幾天後報表又變回去卻查不出原因。
     if (body.isCash !== undefined && SEED_CODES.has(row!.code) && row!.isCash !== CASH_ACCOUNT_CODES.includes(row!.code)) {
       warnings.push(
-        `${row!.code} ${row!.name} 是預設科目表內建的科目，它的「現金科目」設定會在下次系統啟動時` +
-          `校正回預設值（${CASH_ACCOUNT_CODES.includes(row!.code) ? "現金科目" : "非現金科目"}）。` +
-          `要自訂現金帳戶請另建一個科目（例如 1104 銀行存款－玉山）並勾選現金科目`,
+        tr(
+          "{code} {name} 是預設科目表內建的科目，它的「現金科目」設定會在下次系統啟動時校正回預設值（{defaultLabel}）。要自訂現金帳戶請另建一個科目（例如 1104 銀行存款－玉山）並勾選現金科目",
+          { code: row!.code, name: row!.name, defaultLabel: CASH_ACCOUNT_CODES.includes(row!.code) ? tr("現金科目") : tr("非現金科目") },
+        ),
       );
     }
     return warnings.length ? c.json({ ...row!, warning: warnings.join("　") }) : c.json(row!);
@@ -2870,8 +2879,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // R2：截止日早於生效日的合約會被前端當成「已逾期」計入頁首警示——
     // 一份還沒開始的合約被催著續約，當場擋下比事後追查省事
     assertDateOrder(
-      { date: body.startDate, label: "合約生效日" },
-      { date: body.endDate, label: "合約截止日" },
+      { date: body.startDate, label: tr("合約生效日") },
+      { date: body.endDate, label: tr("合約截止日") },
     );
     const [row] = await db.insert(schema.contracts).values(body).returning();
     return c.json(row, 201);
@@ -2968,8 +2977,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     async (c) => {
       const body = c.req.valid("json");
       assertDateOrder(
-        { date: body.startDate, label: "新約生效日" },
-        { date: body.endDate, label: "新約截止日" },
+        { date: body.startDate, label: tr("新約生效日") },
+        { date: body.endDate, label: tr("新約截止日") },
       );
       return c.json(await renewContract(db, idParam(c), body), 201);
     },
@@ -3087,8 +3096,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       }
     }
     assertDateOrder(
-      { date: body.startDate ?? existing.startDate, label: "合約生效日" },
-      { date: body.endDate !== undefined ? body.endDate : existing.endDate, label: "合約截止日" },
+      { date: body.startDate ?? existing.startDate, label: tr("合約生效日") },
+      { date: body.endDate !== undefined ? body.endDate : existing.endDate, label: tr("合約截止日") },
     );
     const [row] = await db
       .update(schema.contracts)

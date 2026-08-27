@@ -11,6 +11,7 @@
 import { schema } from "@tw-erp/db";
 import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import type { Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { billingDue, expiringContracts } from "./contracts.ts";
 import { partnerBalances } from "./ledger.ts";
 import { arAging } from "./orders.ts";
@@ -121,8 +122,13 @@ async function upcoming(db: Db, asOf: string): Promise<UpcomingRow[]> {
   const rows: UpcomingRow[] = [
     ...due.map((d) => ({
       kind: (d.direction === "purchase" ? "payable" : "billing") as "billing" | "payable",
-      label: d.direction === "purchase" ? "合約待付款" : "合約待請款",
-      detail: `${d.contractTitle}（${d.counterparty}）第 ${d.seq} 期${d.description ? `：${d.description}` : ""}`,
+      label: d.direction === "purchase" ? tr("合約待付款") : tr("合約待請款"),
+      detail: tr("{title}（{counterparty}）第 {seq} 期{description}", {
+        title: d.contractTitle,
+        counterparty: d.counterparty,
+        seq: d.seq,
+        description: d.description ? `：${d.description}` : "",
+      }),
       date: d.dueDate,
       amount: d.amount,
       overdue: d.overdue,
@@ -130,8 +136,8 @@ async function upcoming(db: Db, asOf: string): Promise<UpcomingRow[]> {
     })),
     ...payables.map((p) => ({
       kind: "payable" as const,
-      label: "固定支出",
-      detail: `${p.payableName} 第 ${p.seq} 期${p.partnerName ? `（${p.partnerName}）` : ""}`,
+      label: tr("固定支出"),
+      detail: tr("{name} 第 {seq} 期{partner}", { name: p.payableName, seq: p.seq, partner: p.partnerName ? `（${p.partnerName}）` : "" }),
       date: p.dueDate,
       amount: p.amount,
       overdue: p.overdue,
@@ -139,8 +145,8 @@ async function upcoming(db: Db, asOf: string): Promise<UpcomingRow[]> {
     })),
     ...expiring.map((c) => ({
       kind: "contract" as const,
-      label: "合約快到期",
-      detail: `${c.title}（${c.counterparty}）——你設定的提前提醒 ${c.noticeDays} 天`,
+      label: tr("合約快到期"),
+      detail: tr("{title}（{counterparty}）——你設定的提前提醒 {days} 天", { title: c.title, counterparty: c.counterparty, days: c.noticeDays }),
       date: c.endDate,
       amount: null,
       overdue: c.endDate < asOf,

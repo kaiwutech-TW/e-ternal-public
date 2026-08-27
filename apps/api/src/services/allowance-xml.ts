@@ -25,6 +25,7 @@ import { B2C_BUYER_ID, buildG0401, buildG0501, type G0401Item, type Party } from
 import { schema } from "@tw-erp/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 
 /** 賣方開立折讓：官方範例檔名「B2B存證**賣方**開立折讓」對應 AllowanceType=2 */
 const SELLER_ISSUED = "2";
@@ -260,7 +261,7 @@ export async function saleAllowanceXmlBatch(db: Db, from: string, to: string) {
       } catch (e) {
         // 單張產不出（原發票已作廢、號碼字元不合法…）不炸整批：訊息本身已含下一步
         if (!(e instanceof AppError)) throw e;
-        notes.push(e.message);
+        notes.push(tr(e.key, e.params));
       }
       if (doc.voidedAt) {
         try {
@@ -269,14 +270,17 @@ export async function saleAllowanceXmlBatch(db: Db, from: string, to: string) {
           allowanceCancelCount += 1;
         } catch (e) {
           if (!(e instanceof AppError)) throw e;
-          notes.push(e.message);
+          notes.push(tr(e.key, e.params));
         }
       }
     } else if (!doc.voidedAt && doc.docDate >= from && doc.docDate <= to) {
       notes.push(
-        `折讓單 #${doc.id}（原銷貨單 #${doc.saleId}、折讓日 ${doc.docDate}）還沒登錄證明單` +
-          `${doc.certNo ? "日期" : "號碼與日期"}，這次沒有產出 G0401。` +
-          `請到銷貨頁的「退貨／折讓紀錄」補登後重新匯出`,
+        tr("折讓單 #{id}（原銷貨單 #{saleId}、折讓日 {docDate}）還沒登錄證明單{what}，這次沒有產出 G0401。請到銷貨頁的「退貨／折讓紀錄」補登後重新匯出", {
+          id: doc.id,
+          saleId: doc.saleId,
+          docDate: doc.docDate,
+          what: doc.certNo ? tr("日期") : tr("號碼與日期"),
+        }),
       );
     }
   }

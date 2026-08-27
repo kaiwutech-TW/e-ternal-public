@@ -35,4 +35,8 @@ export const invoices: Dictionary = {
     "E-invoice {invoiceNumber} is a disposal invoice (asset #{assetId}); there is no sales invoice to reverse — to reverse the disposal as well, pass reverseDisposal",
   "發票 {invoiceNumber} 是銷貨發票（銷貨單 #{saleId}），沒有資產處分可沖回——要連動沖銷銷貨單請帶 reverseSale":
     "E-invoice {invoiceNumber} is a sales invoice (sales invoice #{saleId}); there is no asset disposal to reverse — to reverse the sales invoice as well, pass reverseSale",
+  "本期（{period}）發票號碼只剩 {remaining} 張可開，用完後將無法開立發票。請儘早至「設定」頁的「電子發票字軌區間」新增區間": "Only {remaining} invoice numbers remain for this period ({period}); once they run out, no invoices can be issued. Add a range under \"E-invoice track ranges\" on the Settings page as soon as possible",
+  "這張發票的銷貨單 #{saleId} 是零稅率、但還沒登錄證明文件號碼（經海關＝出口報單號碼；非經海關＝外匯證明文件號碼等）。取得後請到銷貨頁補登，申報零稅率銷售額需以證明文件為依據。": "Sales invoice #{saleId} behind this invoice is zero-rated but has no supporting document number yet (via customs = export declaration number; not via customs = foreign exchange certificate number, etc.). Add it on the Sales page once available; zero-rated sales must be filed with supporting documents.",
+  "發票開立日期": "invoice issue date",
+  "作廢日期": "void date",
 };

@@ -15,4 +15,9 @@ export const withholding: Dictionary = {
   "扣繳類別「{label}」對應的費用科目 {code} 不存在（請到「會計科目」頁新增它，或在扣繳設定改成別的費用科目）": "The expense account {code} for withholding category \"{label}\" does not exist. Add it on the Chart of Accounts page, or pick a different expense account in Withholding settings.",
   "科目已停用，不可再過帳: {code} {name}（請在扣繳設定把「{label}」改成別的費用科目，或到「會計科目」頁啟用它）": "Account is inactive and cannot be posted to: {code} {name}. Change \"{label}\" to a different expense account in Withholding settings, or activate the account on the Chart of Accounts page.",
   "代扣款科目未初始化（2211／2212），請重新啟動服務讓科目種子灌入": "Withholding payable accounts (2211/2212) are not initialized. Restart the service to seed the accounts.",
+  "「{category}」尚未設定{label}費率，本單的{label}以 0 計。請到扣繳設定填入你查到的費率並在來源欄註明依據；已建立的單據不會回頭重算。": "No {label} rate is set for \"{category}\", so {label} on this payment is NT$0. Enter the rate you have confirmed in Withholding Settings and cite its source; existing payments are not recalculated.",
+  "{label}已覆寫試算值（依費率試算 {estimated} 元，實填 {given} 元）。": "{label} overrides the estimate (rate-based estimate NT${estimated}, entered NT${given}).",
+  "「{category}」尚未設定{label}費率，本單的 {given} 元為你自行填入的金額。": "No {label} rate is set for \"{category}\"; the NT${given} on this payment is the amount you entered yourself.",
+  "扣繳稅款": "withholding tax",
+  "補充保費": "NHI supplementary premium",
 };

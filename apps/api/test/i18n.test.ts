@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.ts";
 import { AppError } from "../src/db.ts";
+import { currentLocale, tr } from "../src/i18n.ts";
 import { setupAdmin } from "./auth-helper.ts";
 
 let app: ReturnType<typeof buildApp>;
@@ -62,5 +63,31 @@ describe("app.onError 依 Accept-Language 翻譯", () => {
     const body = await res.json();
     expect(typeof body.error).toBe("string");
     expect(body.error.length).toBeGreaterThan(0);
+  });
+});
+
+describe("tr()：服務層依請求語言組提示句", () => {
+  it("沒有請求上下文 → 來源語言（中文），不空白", () => {
+    expect(currentLocale()).toBe("zh-TW");
+    expect(tr("sellerTaxId 須為 8 位數字（收到「{value}」）", { value: "x" })).toBe("sellerTaxId 須為 8 位數字（收到「x」）");
+  });
+  it("請求鏈裡看得到 Accept-Language：路由回應裡的提示句是英文", async () => {
+    // 用一支會回 tr() 文字的路由來驗——沒有的話用 onError 的路徑間接驗（AppError 出口與 tr 共用同一份字典）
+    const res = await app.request("/expense-categories/suggestions?sellerTaxId=abc", { headers: { ...admin, "accept-language": "en" } });
+    expect((await res.json()).error).toContain("must be 8 digits");
+  });
+  it("路由回應裡由 tr() 組的 label／detail 依 accept-language: en 是英文；沒帶標頭是中文", async () => {
+    // 月結前檢查：空資料庫也一定回「依序關帳」這一項（不必造資料，結果確定）
+    const zh = await app.request("/period-closes/check?period=2026-01", { headers: admin });
+    expect(zh.status).toBe(200);
+    const zhItem = (await zh.json()).find((i: { key: string }) => i.key === "sequential");
+    expect(zhItem.label).toBe("依序關帳");
+    expect(zhItem.detail).toBe("尚未關過帳，本期將為起始關帳月");
+
+    const en = await app.request("/period-closes/check?period=2026-01", { headers: { ...admin, "accept-language": "en" } });
+    expect(en.status).toBe(200);
+    const enItem = (await en.json()).find((i: { key: string }) => i.key === "sequential");
+    expect(enItem.label).toBe("Periods closed in order");
+    expect(enItem.detail).toBe("No period has been closed yet; this will be the first closed month");
   });
 });

@@ -337,7 +337,7 @@ function AgentAccess() {
       {settings && (
         <form className="inline" onSubmit={saveSettings}>
           <label className="field">
-            {t("供應商")}
+            {t("模型供應商")}
             <select name="provider" defaultValue={settings.provider}>
               {AGENT_PROVIDER_LABELS.map(([v, label]) => (
                 <option key={v} value={v}>{t(label)}</option>

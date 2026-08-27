@@ -268,7 +268,7 @@ export function App() {
             </button>
             <button className="collapse-btn" style={{ marginTop: 0 }} onClick={cycleLocale} title={`${t("語言")}: ${LOCALE_LABEL[locale]}`}>
               <span className="nav-icon" aria-hidden><Languages size={18} strokeWidth={1.8} /></span>
-              <span className="nav-label">{t("語言")}：{LOCALE_LABEL[locale]}</span>
+              <span className="nav-label">{t("語言：")}{LOCALE_LABEL[locale]}</span>
             </button>
             <div className="user-box" style={{ paddingTop: 14, borderTop: "1px solid var(--line)" }}>
               <div style={{ fontSize: 12.5, color: "var(--text-2)", padding: "4px 10px" }}>

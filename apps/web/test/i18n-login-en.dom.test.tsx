@@ -9,6 +9,8 @@ describe("Login page in English", () => {
   it("沒有任何中文殘留，且看得到英文按鈕", () => {
     setLocale("en");
     const { container } = render(<Login needsSetup={false} onLogin={() => {}} />);
+    // 語言切換鈕用目標語言自己的字寫（慣例：英文介面上寫「繁體中文」），所以它不算中文殘留
+    container.querySelector("[data-locale-toggle]")?.remove();
     expect(container.textContent).not.toMatch(/[一-鿿]/);
     expect(screen.getByRole("button", { name: /sign in|log in/i })).toBeTruthy();
   });

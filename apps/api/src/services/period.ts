@@ -10,6 +10,7 @@ import { ACCOUNT, monthlyDepreciation } from "@tw-erp/core";
 import { schema } from "@tw-erp/db";
 import { and, desc, eq, gte, lte, ne, or, isNull } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 
 // 結轉對象改由 core 的 ACCOUNT 提供，與科目維護的「系統科目不可停用」共用同一份清單
 const RETAINED_EARNINGS_CODE = ACCOUNT.RETAINED_EARNINGS;
@@ -82,14 +83,14 @@ export async function checkPeriod(db: Db, period: string): Promise<CheckItem[]> 
   const sequentialOk = through === null || period === nextMonth(through);
   items.push({
     key: "sequential",
-    label: "依序關帳",
+    label: tr("依序關帳"),
     ok: sequentialOk,
     blocking: true,
     detail: through
       ? sequentialOk
-        ? `目前關至 ${through}，本期 ${period} 為下一期`
-        : `目前關至 ${through}，下一個可關期間是 ${nextMonth(through)}`
-      : "尚未關過帳，本期將為起始關帳月",
+        ? tr("目前關至 {through}，本期 {period} 為下一期", { through, period })
+        : tr("目前關至 {through}，下一個可關期間是 {next}", { through, next: nextMonth(through) })
+      : tr("尚未關過帳，本期將為起始關帳月"),
   });
 
   // 折舊：本期應提而未提的使用中資產（已作廢的登錄不再長折舊，0031）
@@ -109,12 +110,12 @@ export async function checkPeriod(db: Db, period: string): Promise<CheckItem[]> 
   });
   items.push({
     key: "depreciation",
-    label: "本月折舊已計提",
+    label: tr("本月折舊已計提"),
     ok: pending.length === 0,
     blocking: true,
     detail: pending.length
-      ? `尚有 ${pending.length} 筆資產未提本期折舊：${pending.map((a) => a.name).join("、")}（請至「固定資產」頁執行）`
-      : "本期折舊已全數計提（或無應提資產）",
+      ? tr("尚有 {n} 筆資產未提本期折舊：{names}（請至「固定資產」頁執行）", { n: pending.length, names: pending.map((a) => a.name).join("、") })
+      : tr("本期折舊已全數計提（或無應提資產）"),
   });
 
   // 庫存帳與存貨科目的差額（B6-b）：庫存開帳刻意不拋轉傳票，忘了補那張期初傳票的話，
@@ -140,15 +141,16 @@ export async function checkPeriod(db: Db, period: string): Promise<CheckItem[]> 
   const invName = invAccount ? `${invAccount.code} ${invAccount.name}` : ACCOUNT.INVENTORY;
   items.push({
     key: "inventory",
-    label: "庫存帳與存貨科目相符",
+    label: tr("庫存帳與存貨科目相符"),
     ok: invDiff === 0,
     blocking: false,
     detail:
       invDiff === 0
-        ? `庫存明細帳合計與 ${invName} 餘額一致（${inventoryLedger} 元）`
-        : `庫存明細帳合計 ${inventoryLedger} 元、${invName} 餘額 ${inventoryAccountBalance} 元，差 ${invDiff} 元` +
-          `——最常見的原因是庫存開帳後忘了補期初傳票（請至「傳票」頁以差額借記 ${invName}），` +
-          `或有只動存貨科目、沒動庫存明細的手工傳票`,
+        ? tr("庫存明細帳合計與 {invName} 餘額一致（{ledger} 元）", { invName, ledger: inventoryLedger })
+        : tr(
+            "庫存明細帳合計 {ledger} 元、{invName} 餘額 {balance} 元，差 {diff} 元——最常見的原因是庫存開帳後忘了補期初傳票（請至「傳票」頁以差額借記 {invName}），或有只動存貨科目、沒動庫存明細的手工傳票",
+            { ledger: inventoryLedger, invName, balance: inventoryAccountBalance, diff: invDiff },
+          ),
   });
 
   // 報銷待核（單據日在本期）：僅提醒，不擋
@@ -166,12 +168,12 @@ export async function checkPeriod(db: Db, period: string): Promise<CheckItem[]> 
     );
   items.push({
     key: "claims",
-    label: "本月報銷已審核",
+    label: tr("本月報銷已審核"),
     ok: claims.length === 0,
     blocking: false,
     detail: claims.length
-      ? `尚有 ${claims.length} 件本月報銷待核（核准日若落在本期會被鎖擋，屆時以次月日期核准）`
-      : "本月無待核報銷",
+      ? tr("尚有 {n} 件本月報銷待核（核准日若落在本期會被鎖擋，屆時以次月日期核准）", { n: claims.length })
+      : tr("本月無待核報銷"),
   });
 
   // 已核准未付（R13）：單據日在本期或更早、錢還沒還員工的。僅提醒不擋——
@@ -188,13 +190,15 @@ export async function checkPeriod(db: Db, period: string): Promise<CheckItem[]> 
     );
   items.push({
     key: "claims-unpaid",
-    label: "已核准報銷已付款",
+    label: tr("已核准報銷已付款"),
     ok: unpaidClaims.length === 0,
     blocking: false,
     detail: unpaidClaims.length
-      ? `尚有 ${unpaidClaims.length} 件已核准報銷未付款（合計 ${unpaidClaims.reduce((s, cl) => s + cl.total, 0)} 元）` +
-        `——「報銷」頁的待付彙總可看每位員工各欠多少`
-      : "已核准報銷均已付款",
+      ? tr("尚有 {n} 件已核准報銷未付款（合計 {total} 元）——「報銷」頁的待付彙總可看每位員工各欠多少", {
+          n: unpaidClaims.length,
+          total: unpaidClaims.reduce((s, cl) => s + cl.total, 0),
+        })
+      : tr("已核准報銷均已付款"),
   });
 
   return items;

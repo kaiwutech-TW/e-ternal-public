@@ -4,6 +4,7 @@ import type { Dictionary } from "@tw-erp/core";
 export const common: Dictionary = {
   // --- 通用 ---
   "語言": "Language",
+  "語言：": "Language: ",
   "外觀：": "Theme: ",
   "淺色": "Light",
   "深色": "Dark",

@@ -38,6 +38,7 @@ import { App } from "./en/App.ts";
 import { print } from "./en/print.ts";
 import { ui } from "./en/ui.ts";
 import { AgentChat } from "./en/AgentChat.ts";
+import { WebMcp } from "./en/WebMcp.ts";
 
 export const en: Dictionary = {
   ...Expenses,
@@ -72,5 +73,6 @@ export const en: Dictionary = {
   ...print,
   ...ui,
   ...AgentChat,
+  ...WebMcp,
   ...common, // 最後：共用詞優先於各頁
 };

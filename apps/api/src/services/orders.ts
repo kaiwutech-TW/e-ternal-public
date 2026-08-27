@@ -9,6 +9,7 @@ import { calcTax, lineAmount } from "@tw-erp/core";
 import { schema } from "@tw-erp/db";
 import { and, count, desc, eq, getTableColumns, gte, inArray, isNull, lte } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
+import { tr } from "../i18n.ts";
 import { settlementMaps } from "./balances.ts";
 import { assertNotFarFuture } from "./dates.ts";
 import { assertZeroTaxShape, createSale, type DocLineInput, type ZeroTaxFields } from "./documents.ts";
@@ -605,10 +606,8 @@ async function aging(db: Db, asOf: string, side: "ar" | "ap") {
   if (fallbackCount > 0) {
     notes.push(
       side === "ar"
-        ? `有 ${fallbackCount} 張未收銷貨單沒有收款到期日（客戶未約定付款條件，或是到期日功能上線前的舊單），` +
-            `改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補客戶的付款條件天數（之後的新單自動帶入）`
-        : `有 ${fallbackCount} 張未付進貨單沒有付款到期日（供應商未約定付款條件，或是到期日功能上線前的舊單），` +
-            `改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補供應商的付款條件天數（之後的新單自動帶入）`,
+        ? tr("有 {n} 張未收銷貨單沒有收款到期日（客戶未約定付款條件，或是到期日功能上線前的舊單），改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補客戶的付款條件天數（之後的新單自動帶入）", { n: fallbackCount })
+        : tr("有 {n} 張未付進貨單沒有付款到期日（供應商未約定付款條件，或是到期日功能上線前的舊單），改以單據日期估算、前 30 天不列入逾期。要精確分桶，請到「客戶與商品」頁補供應商的付款條件天數（之後的新單自動帶入）", { n: fallbackCount }),
     );
   }
   return {
