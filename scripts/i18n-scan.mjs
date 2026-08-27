@@ -9,11 +9,15 @@
  * 2. 未翻 key：程式碼用了 t("…") 但字典沒有（照檔案分組，方便挑 demo 路徑先翻）
  * 3. 還沒包 t() 的中文 JSX 文字（粗估，只看 apps/web/src/pages 的 >中文< 與 "中文" 字面值），量工作量用
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const strict = process.argv.includes("--strict");
+/** --emit：把「未翻 key」依來源檔分組寫成 JSON（翻譯者照這份填進 locales/en/<檔名>.ts） */
+const emitIdx = process.argv.indexOf("--emit");
+const emitPath = emitIdx > 0 ? process.argv[emitIdx + 1] : null;
+const emitted = {};
 const CJK = /[一-鿿]/;
 
 function walk(dir, out = []) {
@@ -25,17 +29,21 @@ function walk(dir, out = []) {
   }
   return out;
 }
-function dictKeys(file) {
-  const src = readFileSync(file, "utf8");
+/** 讀 locales/en/ 底下所有字典檔的 key（以及 locales/en.ts 本身） */
+function dictKeys(dir) {
   const keys = new Set();
-  for (const m of src.matchAll(/^\s*"((?:[^"\\]|\\.)*)":\s*"/gm)) keys.add(m[1].replace(/\\"/g, '"'));
+  const files = [join(dir, "en.ts"), ...readdirSync(join(dir, "en")).map((f) => join(dir, "en", f))];
+  for (const file of files) {
+    const src = readFileSync(file, "utf8");
+    for (const m of src.matchAll(/^\s*"((?:[^"\\]|\\.)*)":\s*"/gm)) keys.add(m[1].replace(/\\"/g, '"'));
+  }
   return keys;
 }
 // t("…") / t('…') / AppError(NNN, "…")
 const USE_RE = /(?:\bt\(|(?:AppError|fail)\(\s*\d+\s*,\s*)\s*(["'])((?:(?!\1)[^\\]|\\.)*)\1/g;
 
-function scan(label, srcDir, dictFile) {
-  const dict = dictKeys(join(ROOT, dictFile));
+function scan(label, srcDir, dictDir) {
+  const dict = dictKeys(join(ROOT, dictDir));
   const used = new Map(); // key -> files
   for (const f of walk(join(ROOT, srcDir))) {
     const src = readFileSync(f, "utf8");
@@ -53,6 +61,7 @@ function scan(label, srcDir, dictFile) {
   console.log(`未翻 key（程式碼有、字典沒有）：${missing.length}`);
   const byFile = new Map();
   for (const [k, files] of missing) for (const f of files) (byFile.get(f) ?? byFile.set(f, []).get(f)).push(k);
+  if (emitPath) for (const [f, ks] of byFile) emitted[f] = Object.fromEntries(ks.map((k) => [k, ""]));
   for (const [f, ks] of [...byFile].sort((a, b) => b[1].length - a[1].length)) {
     console.log(`  ${f}（${ks.length}）`);
     for (const k of ks.slice(0, 5)) console.log(`     ${k}`);
@@ -62,8 +71,12 @@ function scan(label, srcDir, dictFile) {
 }
 
 let orphanTotal = 0;
-orphanTotal += scan("apps/web", "apps/web/src", "apps/web/src/locales/en.ts");
-orphanTotal += scan("apps/api", "apps/api/src", "apps/api/src/locales/en.ts");
+orphanTotal += scan("apps/web", "apps/web/src", "apps/web/src/locales");
+orphanTotal += scan("apps/api", "apps/api/src", "apps/api/src/locales");
+if (emitPath) {
+  writeFileSync(emitPath, JSON.stringify(emitted, null, 2) + "\n");
+  console.log(`\n未翻 key 已寫到 ${emitPath}（${Object.keys(emitted).length} 個來源檔）`);
+}
 
 // 3. 還沒包 t() 的 JSX 中文（粗估）
 console.log("\n== apps/web/src/pages 還沒包 t() 的中文行（粗估，量工作量用） ==");
