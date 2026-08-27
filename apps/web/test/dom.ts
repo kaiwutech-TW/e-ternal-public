@@ -46,7 +46,14 @@ if (typeof globalThis.localStorage === "undefined") {
 }
 
 afterEach(cleanup);
-afterEach(() => localStorage.clear());
+/**
+ * 語言：jsdom 的 navigator.language 是 en-US，src/i18n.ts 沒有偏好時會跟瀏覽器走→英文；
+ * 但既有 dom 測試全用中文標籤查元素。這裡把偏好釘在 zh-TW（每則測試前後都釘），
+ * 要測英文的測試自己呼叫 setLocale("en")。
+ */
+const pinLocale = () => localStorage.setItem("eternal-locale", "zh-TW");
+pinLocale();
+afterEach(() => { localStorage.clear(); pinLocale(); });
 
 export * from "@testing-library/react";
 export const userEvent = userEventLib;

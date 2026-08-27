@@ -1,4 +1,9 @@
+import { getLocale } from "./i18n.ts";
+
 const BASE = "/api";
+
+/** 每個請求都帶語言偏好：伺服端的錯誤訊息（AppError）依此翻譯，與畫面語言一致 */
+const localeHeaders = (): Record<string, string> => ({ "accept-language": getLocale() });
 
 export class ApiError extends Error {
   constructor(
@@ -14,9 +19,8 @@ export class ApiError extends Error {
 async function request<T>(path: string, method: string, body?: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
     method,
-    ...(body !== undefined
-      ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } }
-      : {}),
+    headers: body !== undefined ? { ...localeHeaders(), "content-type": "application/json" } : localeHeaders(),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
@@ -37,7 +41,7 @@ export const api = {
    * 一般 get() 讀不到標頭，要顯示「共 N 筆」的清單頁改走這支。total 為 null＝端點沒帶標頭。
    */
   getList: async <T>(path: string): Promise<{ rows: T; total: number | null }> => {
-    const res = await fetch(BASE + path);
+    const res = await fetch(BASE + path, { headers: localeHeaders() });
     const text = await res.text();
     const json = text ? JSON.parse(text) : null;
     if (!res.ok) {
@@ -56,7 +60,7 @@ export const api = {
    * 錯誤回應仍是 JSON（{error}），照常取出可操作訊息。
    */
   getText: async (path: string): Promise<string> => {
-    const res = await fetch(BASE + path);
+    const res = await fetch(BASE + path, { headers: localeHeaders() });
     const text = await res.text();
     if (!res.ok) {
       if (res.status === 401) window.dispatchEvent(new CustomEvent("api-unauthorized"));

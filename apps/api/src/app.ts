@@ -41,6 +41,7 @@ import {
 } from "./services/agent-settings.ts";
 import { createApiKey, listApiKeys, revokeApiKey, userFromApiKey } from "./services/api-keys.ts";
 import { resolveLlm, runAgentChat, type LlmCall } from "./services/agent-chat.ts";
+import { localeOf, translateFor } from "./i18n.ts";
 import { guideIndex, readGuide } from "./services/agent-guides.ts";
 import {
   approveMemory,
@@ -502,11 +503,11 @@ function idParam(c: Context, name = "id"): number {
   // 用 regex 而不是 Number()：Number(" 12 ")、Number("0x0c")、Number("1e2") 都會過，
   // 於是同一筆資料有一堆 URL 別名，而錯誤訊息又說「必須是正整數」——說到做不到
   if (!/^[1-9]\d*$/.test(raw ?? "")) {
-    throw new AppError(400, `網址中的 ${name} 必須是正整數（收到「${raw}」）`);
+    throw new AppError(400, "網址中的 {name} 必須是正整數（收到「{raw}」）", { name, raw });
   }
   const n = Number(raw);
   if (!Number.isSafeInteger(n)) {
-    throw new AppError(400, `網址中的 ${name} 超出範圍（收到「${raw}」）`);
+    throw new AppError(400, "網址中的 {name} 超出範圍（收到「{raw}」）", { name, raw });
   }
   return n;
 }
@@ -528,16 +529,16 @@ function listQuery(c: Context): ListFilter {
       Number.isNaN(parsed.getTime()) ||
       parsed.toISOString().slice(0, 10) !== v
     ) {
-      throw new AppError(400, `${name} 須為真實存在的日期（YYYY-MM-DD，收到「${v}」）`);
+      throw new AppError(400, "{name} 須為真實存在的日期（YYYY-MM-DD，收到「{v}」）", { name, v });
     }
     return v;
   };
   const int = (name: string, def: number, min: number, max: number): number => {
     const v = q[name];
     if (v === undefined || v === "") return def;
-    if (!/^\d+$/.test(v)) throw new AppError(400, `${name} 須為非負整數（收到「${v}」）`);
+    if (!/^\d+$/.test(v)) throw new AppError(400, "{name} 須為非負整數（收到「{v}」）", { name, v });
     const n = Number(v);
-    if (n < min || n > max) throw new AppError(400, `${name} 須在 ${min}–${max} 之間（收到 ${n}）`);
+    if (n < min || n > max) throw new AppError(400, "{name} 須在 {min}–{max} 之間（收到 {n}）", { name, min, max, n });
     return n;
   };
   const from = date("from");
@@ -646,7 +647,8 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // 「密碼對了但還要驗證碼」必須讓前端分辨得出來，否則畫面只能顯示一句紅字，
     // 使用者不知道該補填什麼（狀態碼刻意仍是 401——沒拿到 session 就是沒登入）
     if (err instanceof TotpRequiredError) return c.json({ error: err.message, totpRequired: true }, 401);
-    if (err instanceof AppError) return c.json({ error: err.message }, err.status as 400);
+    // 依 Accept-Language 翻譯；沒翻的 key 原樣回中文（永遠不會空白）
+    if (err instanceof AppError) return c.json({ error: translateFor(localeOf(c))(err.key, err.params) }, err.status as 400);
     console.error(err);
     return c.json({ error: "internal error" }, 500);
   });
@@ -2559,8 +2561,10 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       const llm = opts?.agentLlm ?? (await resolveLlm(db));
       const cookie = c.req.header("cookie");
       const authorization = c.req.header("authorization");
+      const locale = localeOf(c);
       const result = await runAgentChat({
         llm,
+        locale,
         // 內部請求走完整 middleware（認證→ACL→audit）；轉發原憑證＝以同一個人的身分
         api: async (path, init) => {
           const res = await app.request(path, {
@@ -2568,6 +2572,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
             headers: {
               ...(cookie ? { cookie } : {}),
               ...(authorization ? { authorization } : {}),
+              "accept-language": locale, // agent 看到的錯誤訊息也要跟使用者同語言，它會照唸給人看
               ...(init?.body ? { "content-type": "application/json" } : {}),
             },
             ...(init?.body ? { body: init.body } : {}),
@@ -2707,7 +2712,7 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // 形狀與建單時明細的 sellerTaxId 同一條（claimInput 的 /^\d{8}$/）：對不上就是打錯了，
     // 回 400 而不是靜靜回空陣列——空陣列會被讀成「這家店沒有歷史」
     if (!sellerTaxId || !/^\d{8}$/.test(sellerTaxId)) {
-      throw new AppError(400, `sellerTaxId 須為 8 位數字（收到「${sellerTaxId ?? ""}」）`);
+      throw new AppError(400, "sellerTaxId 須為 8 位數字（收到「{value}」）", { value: sellerTaxId ?? "" });
     }
     return c.json(await sellerCategorySuggestions(db, sellerTaxId));
   });

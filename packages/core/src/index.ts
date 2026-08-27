@@ -64,3 +64,17 @@ export {
   type PageKey,
   type Role,
 } from "./roles.ts";
+export {
+  LOCALES,
+  SOURCE_LOCALE,
+  createTranslator,
+  interpolate,
+  isLocale,
+  negotiateLocale,
+  translate,
+  type Dictionaries,
+  type Dictionary,
+  type Locale,
+  type Params,
+  type Translator,
+} from "./i18n.ts";

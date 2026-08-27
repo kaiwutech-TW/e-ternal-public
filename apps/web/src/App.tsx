@@ -29,12 +29,14 @@ import {
   Users,
   Wallet,
   type LucideIcon,
+  Languages,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
 import { AgentChat } from "./AgentChat.tsx";
 import { AuthContext } from "./auth.ts";
 import { getThemePref, setThemePref, useEffectiveTheme, type ThemePref } from "./theme.ts";
+import { LOCALE_LABEL, setLocale, useLocale, useT } from "./i18n.ts";
 import { NavContext } from "./ui.tsx";
 import { Accounts } from "./pages/Accounts.tsx";
 import { Assets } from "./pages/Assets.tsx";
@@ -176,6 +178,10 @@ export function App() {
 
   // 主題偏好（hook 必須在任何條件 return 之前——放後面會炸 React #310）
   const [themePref, setThemePrefState] = useState<ThemePref>(getThemePref);
+  // 語言：zh-TW／en 兩段輪替（形狀比照外觀鈕；偏好與 <html lang> 由 i18n.ts 管）
+  const locale = useLocale();
+  const t = useT();
+  const cycleLocale = () => setLocale(locale === "en" ? "zh-TW" : "en");
   const effectiveTheme = useEffectiveTheme();
   const cycleTheme = () => {
     // 三段循環：跟隨系統 → 淺色 → 深色 → 跟隨系統
@@ -258,7 +264,11 @@ export function App() {
               <span className="nav-icon" aria-hidden>
                 {themePref === "light" ? <Sun size={18} strokeWidth={1.8} /> : themePref === "dark" ? <Moon size={18} strokeWidth={1.8} /> : <MonitorCog size={18} strokeWidth={1.8} />}
               </span>
-              <span className="nav-label">外觀：{themePref === "light" ? "淺色" : themePref === "dark" ? "深色" : "跟隨系統"}</span>
+              <span className="nav-label">{t("外觀：")}{themePref === "light" ? t("淺色") : themePref === "dark" ? t("深色") : t("跟隨系統")}</span>
+            </button>
+            <button className="collapse-btn" style={{ marginTop: 0 }} onClick={cycleLocale} title={`${t("語言")}: ${LOCALE_LABEL[locale]}`}>
+              <span className="nav-icon" aria-hidden><Languages size={18} strokeWidth={1.8} /></span>
+              <span className="nav-label">{t("語言")}：{LOCALE_LABEL[locale]}</span>
             </button>
             <div className="user-box" style={{ paddingTop: 14, borderTop: "1px solid var(--line)" }}>
               <div style={{ fontSize: 12.5, color: "var(--text-2)", padding: "4px 10px" }}>

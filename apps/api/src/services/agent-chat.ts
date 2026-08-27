@@ -13,6 +13,7 @@
  *   OpenAI 相容 chat/completions（後三者需自填 baseUrl）。金鑰取自 agent_settings
  *   （settings 頁管理，永不下發前端）。系統不預設型號——與 agent-settings 同一紀律。
  */
+import type { Locale } from "@tw-erp/core";
 import { AppError, type Db } from "../db.ts";
 import { getAgentApiKey, getAgentSettings } from "./agent-settings.ts";
 
@@ -445,6 +446,8 @@ export interface ChatInputMessage {
 
 export async function runAgentChat(input: {
   llm: LlmCall;
+  /** 回覆語言（路由端從 Accept-Language 判定）；缺＝繁體中文 */
+  locale?: Locale;
   api: ApiFetch;
   ops: KnowledgeOps;
   /** 依角色與資料庫現況組出的上下文（路由端組裝，服務端不碰 db） */
@@ -459,7 +462,9 @@ export async function runAgentChat(input: {
     `- 你只能建立「草稿／待簽核」的東西（報價單、請假/加班/補卡申請）。核准、過帳、出貨、關帳、發薪定案一律由人在系統裡自己操作——這是本系統的責任紅線：agent 不能負人類世界的責任。使用者要求你核准或過帳時，指引他去對應頁面按，不要嘗試代做。\n` +
     `- 涉及稅務或勞動法規的數字（稅率、倍率、額度天數），本系統與你都不斷言——引導使用者自行查證後填入對應設定頁。\n` +
     `- 使用者教你公司層級的事實時，用 propose_memory 提議記下來（生效要管理者核准）。\n` +
-    `- 回覆用繁體中文，精簡直接，金額加千分位。\n\n` +
+    (input.locale === "en"
+      ? `- Reply in English (the user's interface language). Be concise and direct; format amounts with thousands separators. Tool results and guides are in Traditional Chinese—translate what the user needs, keep document numbers and account codes verbatim.\n\n`
+      : `- 回覆用繁體中文，精簡直接，金額加千分位。\n\n`) +
     `## 這位使用者看得到的功能（角色地圖）\n${input.context.featureMap}\n\n` +
     `## 操作指南索引（詳情用 read_guide 讀）\n${input.context.guideIndex}` +
     (input.context.memoryIndex ? `\n\n## 公司記憶索引（詳情用 read_memory 讀）\n${input.context.memoryIndex}` : "");
