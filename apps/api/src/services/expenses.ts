@@ -19,7 +19,7 @@
 import { ACCOUNT, EXPENSE_CATEGORIES, roundHalfUp } from "@tw-erp/core";
 import { schema } from "@tw-erp/db";
 import { parseEInvoiceLeftQr } from "@tw-erp/einvoice";
-import { and, count, desc, eq, gte, inArray, isNull, lte, ne, sql, sum } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gte, inArray, isNull, lte, ne, sql, sum } from "drizzle-orm";
 import { AppError, type Db } from "../db.ts";
 import type { AuthUser } from "./auth.ts";
 import { assertNotFarFuture } from "./dates.ts";
@@ -1028,4 +1028,76 @@ export async function getClaimItemImage(db: Db, claimId: number, itemId: number)
     fileName: `報銷單${claimId}-明細${itemId}${item.invoiceNumber ? `-${item.invoiceNumber}` : ""}`,
     image: item.image,
   };
+}
+
+/** 分類「被公司接受過」的狀態；判準與理由見 sellerCategorySuggestions 的註解 */
+const ACCEPTED_CLAIM_STATUSES = ["approved", "paid"] as const;
+
+/** 候選數量上限：這是給人掃一眼就按的東西，列到第四個就不如自己開下拉選 */
+const SELLER_CATEGORY_LIMIT = 3;
+
+/**
+ * 「公司過去核准過的單裡，這家賣方最常被歸到哪幾個分類」（W7）。**候選，不是決定。**
+ * 「最常」的量尺是**幾張單這樣歸過**（claimCount），不是幾筆明細——理由見下方 ★。
+ *
+ * 為什麼是查歷史而不是從品名推：決定分類的是**用途**（誰吃的、為了什麼），
+ * 而用途不在發票裡也不在照片裡。同一家餐廳可以橫跨 6112 員工伙食／6115 員工福利／
+ * 6137 餐飲與交際，這三個的可扣抵預設值還不一樣（EXPENSE_CATEGORIES）。
+ * 所以這裡只回「別人以前怎麼歸的」，選哪一個仍然由填單的人決定。
+ *
+ * ★ 母體的判準（下一個人一定會問「為什麼我剛送的那筆沒出現」）：
+ *   只算 status ∈ ACCEPTED_CLAIM_STATUSES 且 voided_at IS NULL 的單。
+ *   - rejected：財務看過而且退回了，那個分類從來沒有被接受過。拿它當慣例，
+ *     等於把一個已知的錯誤複製給下一個掃到同一家店的人。
+ *   - voided_at（0036）：核准後才發現打錯的唯一出路。單子已經被反向傳票撤掉，
+ *     它的分類也不該再算數——否則作廢救得了總帳，救不了它留下的示範效果。
+ *   - submitted：**還沒有人看過**。它是申請人自己的選擇，不是「公司做過的選擇」，
+ *     而且下一步可能就是被退回。算進來的話，一個人的誤選會在被糾正之前先傳染出去。
+ *   - approved 與 paid 同權重：付款只是核准之後的出納動作，分類在核准那一刻就被接受了。
+ *
+ * ★ 權重是**不同單據數**（count(distinct claim_id)），不是明細筆數。
+ *   一開始寫成明細筆數，理由是「每一筆明細都是一次獨立歸類」——那是錯的：
+ *   同一張單裡的 5 筆明細只經過**一次**核准，是一個人的一個歸類決定被接受了一次。
+ *   照明細筆數算，一張批次上傳的單（同一次核准動作）就能壓過好幾張各自被核准的單，
+ *   而這裡要回答的問題是「公司的慣例是什麼」——慣例由幾次被接受的決定堆出來，
+ *   不由某一次上傳了幾張收據決定。
+ *   欄位因此叫 claimCount 而不是 count：叫 count 的話下一個人只會讀成「幾筆」。
+ *
+ * 只留仍然是現行分類的科目（inArray CATEGORY_BY_CODE）：回一個下拉選單裡已經不存在的
+ * 舊科目，使用者按不下去。過濾寫在 WHERE 而不是取完前三名再篩，否則會回不滿三筆。
+ *
+ * 回傳刻意只有分類代號、標籤與單據數：金額、報銷人、單號一律不給——
+ * 這個端點對所有角色開放（見 auth.ts 的 RULES），多回一個欄位就是多開一條跨員工的資料通道。
+ * 沒有歷史就回空陣列，不補預設分類：猜一個放在「候選」的位置，使用者會以為那是系統查出來的。
+ */
+export async function sellerCategorySuggestions(
+  db: Db,
+  sellerTaxId: string,
+): Promise<{ accountCode: string; label: string; claimCount: number }[]> {
+  const rows = await db
+    .select({
+      accountCode: schema.expenseItems.accountCode,
+      claimCount: countDistinct(schema.expenseItems.claimId),
+    })
+    .from(schema.expenseItems)
+    .innerJoin(schema.expenseClaims, eq(schema.expenseItems.claimId, schema.expenseClaims.id))
+    .where(
+      and(
+        eq(schema.expenseItems.sellerTaxId, sellerTaxId),
+        inArray(schema.expenseClaims.status, [...ACCEPTED_CLAIM_STATUSES]),
+        isNull(schema.expenseClaims.voidedAt),
+        inArray(schema.expenseItems.accountCode, [...CATEGORY_BY_CODE.keys()]),
+      ),
+    )
+    .groupBy(schema.expenseItems.accountCode)
+    // 單據數相同時以科目代號決勝：沒有第二個排序鍵的話，同分的兩個分類誰進前三名由
+    // 資料庫當下的掃描順序決定，同一份資料按兩次可能給出不一樣的答案。
+    // 同分在這裡是常態而不是巧合——改成不同單據數之後，數字小、撞在一起的機會更大
+    .orderBy(desc(countDistinct(schema.expenseItems.claimId)), asc(schema.expenseItems.accountCode))
+    .limit(SELLER_CATEGORY_LIMIT);
+  return rows.map((r) => ({
+    accountCode: r.accountCode,
+    label: CATEGORY_BY_CODE.get(r.accountCode)!.label,
+    claimCount: r.claimCount,
+  }));
 }

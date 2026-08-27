@@ -135,6 +135,7 @@ import {
   payClaim,
   rejectClaim,
   resubmitClaim,
+  sellerCategorySuggestions,
 } from "./services/expenses.ts";
 import { saleAllowanceG0401, saleAllowanceG0501 } from "./services/allowance-xml.ts";
 import { depreciationScheduleExport, einvoiceXmlExport, expenseClaimsExport, journalExport, purchasesExport, salesInvoicesExport } from "./services/exports.ts";
@@ -2689,6 +2690,26 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
       });
     }
     return c.json(rows);
+  });
+  /**
+   * 賣方統編 → 歷史分類候選（W7）。**純確定性查詢，沒有任何推測**：
+   * 掃完 QR 之後號碼／金額／日期／統編都帶好了，只剩「這筆是什麼」還要自己從下拉選，
+   * 而選錯會連帶影響可扣抵性。這裡回的是「這家賣方，公司過去核准過的單最常歸到哪幾類」。
+   *
+   * 刻意不做成自動選中（畫面只當候選用）：同一家賣方可以橫跨伙食／福利／交際三個分類，
+   * 決定的是用途，而用途不在發票裡。母體判準（哪些單算數）見 services/expenses.ts。
+   * 每筆候選的 claimCount 是**幾張單這樣歸過**（不是幾筆明細）：一張單＝一次被公司接受的
+   * 歸類決定，否則一張批次上傳的單就能壓過好幾張各自被核准的單。
+   * 沒有歷史就回空陣列——冷啟動時不猜一個給使用者。
+   */
+  app.get("/expense-categories/suggestions", async (c) => {
+    const sellerTaxId = c.req.query("sellerTaxId");
+    // 形狀與建單時明細的 sellerTaxId 同一條（claimInput 的 /^\d{8}$/）：對不上就是打錯了，
+    // 回 400 而不是靜靜回空陣列——空陣列會被讀成「這家店沒有歷史」
+    if (!sellerTaxId || !/^\d{8}$/.test(sellerTaxId)) {
+      throw new AppError(400, `sellerTaxId 須為 8 位數字（收到「${sellerTaxId ?? ""}」）`);
+    }
+    return c.json(await sellerCategorySuggestions(db, sellerTaxId));
   });
 
   const claimInput = z.object({

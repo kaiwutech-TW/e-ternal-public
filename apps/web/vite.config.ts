@@ -1,5 +1,8 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import type { Plugin } from "vite";
+// vitest/config 的 defineConfig 就是 vite 的那一支，只是多認得 `test` 欄位——
+// vitest 沒有自己的設定檔時會讀這支，所以測試與建置共用同一組 plugin（JSX 轉譯靠 react()）。
+import { defineConfig } from "vitest/config";
 
 /**
  * zxing-wasm 的**預設** `locateFile` 是一個指向 jsDelivr 的樣板字串
@@ -39,6 +42,27 @@ function stripZXingCdnDefault(): Plugin {
 
 export default defineConfig({
   plugins: [react(), stripZXingCdnDefault()],
+  /**
+   * 測試環境：**預設 node，需要 DOM 的檔案自己宣告**。
+   *
+   * 為什麼不整包切 jsdom：這裡絕大多數測試是純函式（payload 形狀、字串建議、額度計算），
+   * 在 node 跑得又快又穩；替它們每一支都架一個 DOM 是白付成本，也會讓「這支測試到底
+   * 依不依賴瀏覽器」變得看不出來。
+   *
+   * 要 render 元件的測試，在**檔案第一行**加上這個註解就會拿到 jsdom：
+   *
+   *     // @vitest-environment jsdom
+   *
+   * 並且從 `test/dom.ts` 取用 render／screen／userEvent（那支會註冊每則測試後的 cleanup，
+   * 直接 import @testing-library/react 就少了這道，前一則的 DOM 會殘留到下一則）。
+   * 命名慣例：`*.dom.test.tsx`——光看檔名就知道這支要 DOM。
+   *
+   * ★ 射程：jsdom **沒有 canvas**。影像解碼與 QR 掃描那條路（einvoice-qr.ts、
+   *   Expenses 的批次上傳前處理）在這裡測不到，那部分只能靠實機。
+   */
+  test: {
+    environment: "node",
+  },
   server: {
     proxy: {
       // 不剝 /api 前綴——後端 API 統一掛在 /api（見 apps/api/src/server-app.ts）
