@@ -1,0 +1,163 @@
+/* WebMCP 專屬樣式：全部吃 styles.css 的主題變數，深淺色自動跟隨 */
+
+/* ---- 草稿共編卡（右下浮動） ---- */
+.wm-draft {
+  position: fixed;
+  right: 18px;
+  bottom: 74px;
+  width: min(440px, calc(100vw - 36px));
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 60;
+  box-shadow: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--accent);
+}
+.wm-draft-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.wm-draft-head strong { font-size: 0.9375rem; }
+.wm-draft-head .wm-icon-btn { margin-left: auto; }
+.wm-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--amber-tint);
+  color: var(--amber);
+  white-space: nowrap;
+}
+.wm-draft-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.wm-draft-grid label { font-size: 12.5px; color: var(--text-2); }
+.wm-val { font-weight: 600; padding: 2px 4px; border-radius: 6px; }
+.wm-lines { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wm-lines th {
+  text-align: left;
+  color: var(--text-3);
+  font-weight: 500;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.wm-lines td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.wm-num { width: 76px; }
+.wm-right { text-align: right; }
+.wm-draft-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.wm-hint { font-size: 11.5px; color: var(--text-3); }
+.wm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 6px;
+}
+.wm-icon-btn:hover { background: var(--hover); color: var(--text); }
+
+/* 高亮動畫：agent 改的用主色、人改的用綠色——「誰動了哪格」一眼可辨 */
+@keyframes wm-flash { from { box-shadow: inset 0 0 0 999px var(--wm-flash-color); } to { box-shadow: none; } }
+.wm-flash-agent { --wm-flash-color: var(--accent-tint); animation: wm-flash 2.4s ease-out; }
+.wm-flash-human { --wm-flash-color: var(--green-tint); animation: wm-flash 2.4s ease-out; }
+
+/* ---- 簽核卡（modal） ---- */
+.wm-approval-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+}
+.wm-approval { width: min(400px, calc(100vw - 40px)); border: 1px solid var(--accent); }
+.wm-approval-head { display: flex; align-items: center; gap: 8px; color: var(--accent); margin-bottom: 6px; }
+.wm-approval-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; }
+.wm-facts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.wm-fact { display: flex; justify-content: space-between; font-size: 13.5px; }
+.wm-fact span { color: var(--text-2); }
+.wm-approval-actions { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 8px; }
+.wm-approve {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wm-approve:hover { background: var(--accent-hover); }
+.wm-decline {
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.wm-decline:hover { background: var(--hover); }
+
+/* ---- Agent 活動側欄（左下，不擋主內容） ---- */
+.wm-activity {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  width: min(360px, calc(100vw - 36px));
+  z-index: 55;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  overflow: hidden;
+}
+.wm-activity-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.wm-activity ul { list-style: none; margin: 0; padding: 4px 0; max-height: 180px; overflow-y: auto; }
+.wm-activity li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  color: var(--text-2);
+}
+.wm-activity code { font-size: 11.5px; color: var(--text); }
+.wm-act-time { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.wm-act-sum {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  flex: 1;
+}
+.wm-act-pending { opacity: 0.65; }
+.wm-act-error code { color: var(--red); }
+
+/* 手機：草稿卡貼底全寬、活動側欄先讓位 */
+@media (max-width: 640px) {
+  .wm-draft { right: 8px; left: 8px; width: auto; bottom: 8px; }
+  .wm-activity { display: none; }
+}

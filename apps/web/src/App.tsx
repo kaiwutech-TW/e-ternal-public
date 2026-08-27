@@ -34,6 +34,7 @@ import {
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
 import { AgentChat } from "./AgentChat.tsx";
+import { WebMcp } from "./webmcp/WebMcp.tsx";
 import { AuthContext } from "./auth.ts";
 import { getThemePref, setThemePref, useEffectiveTheme, type ThemePref } from "./theme.ts";
 import { LOCALE_LABEL, setLocale, useLocale, useT } from "./i18n.ts";
@@ -281,6 +282,8 @@ export function App() {
             <div className="nav-tooltip" style={{ top: tip.top }}>{tip.label}</div>
           )}
           <AgentChat />
+          {/* WebMCP：把本頁能力開給使用者的瀏覽器 agent（工具依角色×頁面動態註冊） */}
+          <WebMcp page={current.key} />
           <main className="main" key={current.key}>
             <div className="page-header">
               <h2>{t(current.label)}</h2>
