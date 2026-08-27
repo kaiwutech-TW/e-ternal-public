@@ -29,6 +29,11 @@ import { resolveDeductible, resolveVatRate } from "./tax-parameters.ts";
 
 const CATEGORY_BY_CODE = new Map(EXPENSE_CATEGORIES.map((c) => [c.accountCode, c]));
 
+/** 422 EXPENSE_CONFLICT 的 details 元素（前端 Expenses.tsx 依此分岔，與訊息文字脫鉤） */
+export type ExpenseConflictDetail =
+  | { kind: "qr_mismatch"; lineIndex: number }
+  | { kind: "tax_source_conflict"; lineIndex: number; invoiceNumber: string | null; voucherTax: number; rateTax: number };
+
 export interface ExpenseItemInput {
   accountCode: string;
   description?: string | undefined;
@@ -267,7 +272,11 @@ async function prepareItems(
   const notes: string[] = [];
   const items: PreparedItem[] = [];
   // 要使用者確認的衝突：收集完整批再一起回報（訊息指得出第幾筆／哪張發票）
-  const conflicts: string[] = [];
+  /**
+   * 擋下整批的衝突。text 給人看（會依語言翻譯的是外層那句抬頭，這裡的句子目前仍是中文組的）；
+   * detail 給前端分岔流程用（哪一筆、什麼事、數字各是多少）——前端**不得**解析 text。
+   */
+  const conflicts: Array<{ text: string; detail: ExpenseConflictDetail }> = [];
   // 一張報銷單裡本公司統編不會變，撈一次就好
   const companyTaxId = await resolveCompanyTaxId(tx);
   // 同一張報銷單內的重號也要擋（四筆同號＝50 元的進項稅被算成 200，gap R5 實測過）
@@ -362,10 +371,12 @@ async function prepareItems(
         check("賣方統編", qr.sellerTaxId, item.sellerTaxId);
         check("總計額", qr.totalAmount, item.amount);
         if (mismatches.length > 0) {
-          conflicts.push(
-            `${at}：掃到的發票 QR 與這筆填的內容對不起來——${mismatches.join("、")}。` +
+          conflicts.push({
+            text:
+              `${at}：掃到的發票 QR 與這筆填的內容對不起來——${mismatches.join("、")}。` +
               `進項稅額是從這張憑證導出來的，欄位對不起來就不能算：請重新上傳這張憑證的照片（掃完 QR 之後又改過欄位嗎？）`,
-          );
+            detail: { kind: "qr_mismatch", lineIndex: index },
+          });
         } else {
           /**
            * 第五欄：買方統編。這是**可扣抵性**的伺服端判定（與上面的硬規則同一個形狀）——
@@ -383,10 +394,12 @@ async function prepareItems(
             if (qr.salesAmount > qr.totalAmount) {
               // QR 自己的兩個欄位就對不起來。放行的話「總額 − 銷售額」是負數，
               // 一筆負的進項稅會一路無聲進 401，沒有任何畫面看得出來
-              conflicts.push(
-                `${at}：發票 ${item.invoiceNumber} 的 QR 上，銷售額 ${qr.salesAmount} 元大於總計額 ${qr.totalAmount} 元——` +
+              conflicts.push({
+                text:
+                  `${at}：發票 ${item.invoiceNumber} 的 QR 上，銷售額 ${qr.salesAmount} 元大於總計額 ${qr.totalAmount} 元——` +
                   `這張 QR 自己的兩個欄位對不起來，系統不敢從它導出進項稅額。請重新上傳這張憑證的照片`,
-              );
+                detail: { kind: "qr_mismatch", lineIndex: index },
+              });
             } else {
               voucherSalesAmount = qr.salesAmount;
             }
@@ -475,16 +488,16 @@ async function prepareItems(
         landedSource = requestedSource === "rate" ? "rate" : null;
       } else if (voucherTax !== rateTax) {
         if (!requestedSource) {
-          // ★ 這段訊息的字面形狀是前端 Expenses.tsx（parseTaxSourceConflict）解析兩個數字的依據：
-          //   「憑證所載的銷售額回推＝N 元」「你設定的稅率回推＝N 元」兩句改字要一起改那邊。
-          //   走訊息而不是結構化欄位，是因為錯誤回應目前只有 {error: string} 這一個通道。
-          conflicts.push(
-            `${at}：發票 ${item.invoiceNumber} 的進項稅額有兩個來源、算出來的數字不一樣：` +
+          // 兩個數字給前端做按鈕用的是 detail（結構化），訊息文字可以自由改、也會被翻譯
+          conflicts.push({
+            detail: { kind: "tax_source_conflict", lineIndex: index, invoiceNumber: item.invoiceNumber, voucherTax, rateTax },
+            text:
+              `${at}：發票 ${item.invoiceNumber} 的進項稅額有兩個來源、算出來的數字不一樣：` +
               `憑證所載的銷售額回推＝${voucherTax} 元（總額 ${item.amount} − 憑證上的銷售額 ${voucherSalesAmount}）；` +
               `你設定的稅率回推＝${rateTax} 元（總額 ${item.amount} − 依你在「稅法參數」頁設定的營業稅率換算出的未稅額）。` +
               fallbackNote +
               `哪一個數字進 401 是你的判斷，系統不替你選：請指定這筆明細要用哪一個來源，再送出一次`,
-          );
+          });
         } else {
           const chosen = requestedSource === "voucher" ? voucherTax : rateTax;
           const other = requestedSource === "voucher" ? rateTax : voucherTax;
@@ -535,9 +548,10 @@ async function prepareItems(
     throw new AppError(
       422,
       conflicts.length === 1
-        ? conflicts[0]!
+        ? conflicts[0]!.text
         : "這張報銷單有 {n} 筆明細要你確認（一次列出，不必來回送）：\n{list}",
-      { n: conflicts.length, list: conflicts.join("\n") },
+      { n: conflicts.length, list: conflicts.map((c) => c.text).join("\n") },
+      { code: "EXPENSE_CONFLICT", details: conflicts.map((c) => c.detail) },
     );
   }
   return { items, notes };

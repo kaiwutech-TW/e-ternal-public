@@ -300,6 +300,9 @@ describe("報銷稅額：憑證所載的銷售額 vs 費率回推", () => {
     expect(res.status).toBe(422);
     expect(res.json.error).toContain("發票號碼");
     expect(res.json.error).toContain("重新上傳");
+    // 前端分岔靠結構化欄位（訊息會依語言翻譯，不可解析文字）
+    expect(res.json.code).toBe("EXPENSE_CONFLICT");
+    expect(res.json.details).toEqual([{ kind: "qr_mismatch", lineIndex: 0 }]);
     // 單沒建起來（整筆交易 rollback），10000 元的進項稅不存在於任何地方
     const list = await api("/expense-claims");
     const landed = list.json.some((c: { items: { invoiceNumber: string; tax: number }[] }) =>
@@ -755,6 +758,12 @@ describe("報銷稅額：憑證所載的銷售額 vs 費率回推", () => {
       const { resent } = await rejectAndResend("WX10000032", { taxSource: null });
       expect(resent.status).toBe(422);
       expect(resent.json.error).toContain("請指定這筆明細要用哪一個來源");
+      // 前端「用哪個數字」的按鈕靠 details 拿兩個稅額（訊息會依語言翻譯，不可解析文字）
+      expect(resent.json.code).toBe("EXPENSE_CONFLICT");
+      expect(resent.json.details).toHaveLength(1);
+      expect(resent.json.details[0]).toMatchObject({ kind: "tax_source_conflict", lineIndex: 0, invoiceNumber: "WX10000032" });
+      expect(typeof resent.json.details[0].voucherTax).toBe("number");
+      expect(typeof resent.json.details[0].rateTax).toBe("number");
     });
 
     it("沒送這個欄位（只改了描述）：照舊沿用上次的選擇", async () => {

@@ -11,6 +11,10 @@ export class ApiError extends Error {
     message: string,
     /** 登入專用：密碼對了，但這個帳號還需要二階段驗證的驗證碼 */
     public readonly totpRequired = false,
+    /** 伺服端的機器可讀代碼——要分岔流程看這個，訊息文字會依語言翻譯、不可解析 */
+    public readonly code?: string,
+    /** 隨 code 附帶的結構化資料 */
+    public readonly details?: unknown,
   ) {
     super(message);
   }
@@ -29,7 +33,7 @@ async function request<T>(path: string, method: string, body?: unknown): Promise
     if (res.status === 401 && path !== "/auth/login") {
       window.dispatchEvent(new CustomEvent("api-unauthorized"));
     }
-    throw new ApiError(res.status, json?.error ?? `HTTP ${res.status}`, json?.totpRequired === true);
+    throw new ApiError(res.status, json?.error ?? `HTTP ${res.status}`, json?.totpRequired === true, json?.code, json?.details);
   }
   return json as T;
 }

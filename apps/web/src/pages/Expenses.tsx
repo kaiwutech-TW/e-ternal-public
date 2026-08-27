@@ -1,6 +1,6 @@
 import { canAccessPage } from "@tw-erp/core";
 import { useEffect, useState } from "react";
-import { api } from "../api.ts";
+import { api, ApiError } from "../api.ts";
 import { CategorySuggestions } from "../CategorySuggestions.tsx";
 import { useAuth } from "../auth.ts";
 import { readReceiptImage, type EInvoiceQr, type EInvoiceQrScan } from "../einvoice-qr.ts";
@@ -52,16 +52,13 @@ interface TaxSourceConflict {
   rateTax: number;
 }
 
-/**
- * 從 422 的訊息裡把兩個稅額拆出來。訊息的字面形狀由 api/src/services/expenses.ts 的
- * prepareItems 產生（那邊改字要一起改這裡）——之所以解析訊息而不是讀結構化欄位，
- * 是因為錯誤回應目前只有 {error: string} 這一個通道（這一輪重新確認過伺服端：
- * AppError 仍只帶一個字串，沒有結構化欄位可讀，所以耦合保留，不為了它改全域錯誤處理）。
- * 拆不出來也不會少講什麼：訊息本身已經把兩個數字與各自的來源寫在裡面，照樣顯示在錯誤列。
- */
-function parseTaxSourceConflict(message: string): TaxSourceConflict | null {
-  const m = /發票 ([A-Z]{2}\d{8}) 的進項稅額有兩個來源[^]*?憑證所載的銷售額回推＝(\d+) 元[^]*?你設定的稅率回推＝(\d+) 元/.exec(message);
-  return m ? { invoiceNumber: m[1]!, voucherTax: Number(m[2]), rateTax: Number(m[3]) } : null;
+/** 422 EXPENSE_CONFLICT 的 details（形狀由 api/src/services/expenses.ts 的 ExpenseConflictDetail 定義） */
+type ExpenseConflictDetail =
+  | { kind: "qr_mismatch"; lineIndex: number }
+  | { kind: "tax_source_conflict"; lineIndex: number; invoiceNumber: string | null; voucherTax: number; rateTax: number };
+
+function conflictDetails(e: unknown): ExpenseConflictDetail[] {
+  return e instanceof ApiError && e.code === "EXPENSE_CONFLICT" && Array.isArray(e.details) ? (e.details as ExpenseConflictDetail[]) : [];
 }
 
 /**
@@ -237,8 +234,6 @@ type ExpenseClaimDetail = Omit<ExpenseClaimRow, "items"> & { items: ExpenseItemD
  * 這一句的字面同樣由 api/src/services/expenses.ts 的 prepareItems 產生，改字要一起改這裡——
  * 認不出來也不會少講什麼（訊息本身照樣顯示在錯誤列），只是少了「清除辨識結果」那個指路。
  */
-const QR_MISMATCH_RE = /掃到的發票 QR 與這筆填的內容對不起來/;
-
 const TAX_SOURCE_LABEL: Record<"voucher" | "rate", string> = {
   voucher: "憑證所載的銷售額回推",
   rate: "你設定的稅率回推",
@@ -952,14 +947,14 @@ export function Expenses() {
       claims.reload();
     } catch (e) {
       setOk(null);
-      const message = (e as Error).message;
-      setError(message);
-      // 稅額兩個來源不一致：訊息照樣顯示（它已經把兩個數字講清楚了），
-      // 拆得出數字就再多給一組按鈕，讓使用者直接點選要用哪一個
-      setTaxConflict(parseTaxSourceConflict(message));
-      // 四欄交叉核對被擋下（掃完 QR 又改了欄位）：伺服端的訊息說得出哪裡對不起來，
-      // 但沒有說「怎麼往下走」——出路是清掉這筆的辨識結果，那個按鈕在明細那一列
-      setQrMismatch(QR_MISMATCH_RE.test(message));
+      setError((e as Error).message);
+      // 分岔一律看結構化的 code/details，不解析訊息文字（訊息會依語言翻譯）。
+      // 稅額兩個來源不一致：訊息照樣顯示，再多給一組按鈕讓使用者直接點選要用哪一個
+      const details = conflictDetails(e);
+      const tax = details.find((d): d is Extract<ExpenseConflictDetail, { kind: "tax_source_conflict" }> => d.kind === "tax_source_conflict");
+      setTaxConflict(tax && tax.invoiceNumber ? { invoiceNumber: tax.invoiceNumber, voucherTax: tax.voucherTax, rateTax: tax.rateTax } : null);
+      // 四欄交叉核對被擋下（掃完 QR 又改了欄位）：出路是清掉這筆的辨識結果，那個按鈕在明細那一列
+      setQrMismatch(details.some((d) => d.kind === "qr_mismatch"));
     }
   };
 

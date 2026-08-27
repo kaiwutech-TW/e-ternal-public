@@ -643,7 +643,16 @@ export function buildApp(db: Db, opts?: { agentLlm?: LlmCall }) {
     // 使用者不知道該補填什麼（狀態碼刻意仍是 401——沒拿到 session 就是沒登入）
     if (err instanceof TotpRequiredError) return c.json({ error: err.message, totpRequired: true }, 401);
     // 依 Accept-Language 翻譯；沒翻的 key 原樣回中文（永遠不會空白）
-    if (err instanceof AppError) return c.json({ error: translateFor(localeOf(c))(err.key, err.params) }, err.status as 400);
+    if (err instanceof AppError) {
+      return c.json(
+        {
+          error: translateFor(localeOf(c))(err.key, err.params),
+          ...(err.code !== undefined ? { code: err.code } : {}),
+          ...(err.details !== undefined ? { details: err.details } : {}),
+        },
+        err.status as 400,
+      );
+    }
     console.error(err);
     return c.json({ error: "internal error" }, 500);
   });

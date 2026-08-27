@@ -17,11 +17,17 @@ export class AppError extends Error {
   readonly status: number;
   readonly key: string;
   readonly params: Params | undefined;
+  /** 機器可讀的錯誤代碼（前端要分岔流程時看這個，**不要解析訊息文字**——訊息會依語言翻譯） */
+  readonly code: string | undefined;
+  /** 隨 code 附帶的結構化資料（例：稅額兩個來源各是多少），原樣進回應的 details 欄 */
+  readonly details: unknown;
 
-  constructor(status: number, key: string, params?: Params) {
+  constructor(status: number, key: string, params?: Params, extra?: { code?: string; details?: unknown }) {
     super(interpolate(key, params));
     this.status = status;
     this.key = key;
     this.params = params;
+    this.code = extra?.code;
+    this.details = extra?.details;
   }
 }
