@@ -25,11 +25,12 @@ state, same guardrails* — together.
 
 ## Prior work vs. new work (rules compliance)
 
-- **Prior work (before the Submission Period):** the entire ERP itself — see the git history,
-  which is continuous and timestamped. Nothing about WebMCP existed in the codebase before the
-  Submission Period.
+- **Prior work (before the Submission Period):** the entire ERP itself, squashed into the root
+  commit of this public repository (dated 2026-08-26). The private development history was
+  squashed because it contains a client's confidential data; nothing about WebMCP existed in the
+  codebase before the Submission Period.
 - **New work (during the Submission Period, what we ask to be judged on):**
-  - `apps/web/src/webmcp/` — the complete WebMCP integration (commit `d39a3f5`, 2026-08-27,
+  - `apps/web/src/webmcp/` — the complete WebMCP integration (commit `7df6fbe`, 2026-08-27,
     and follow-ups). Every file in that directory is new work.
   - English internationalization of the full UI (`apps/web/src/i18n.ts`, `apps/web/src/locales/`)
     so agents and judges can use the product in English.
