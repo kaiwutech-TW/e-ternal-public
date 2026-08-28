@@ -1,5 +1,15 @@
 # WebMCP Challenge Submission Notes
 
+> **What to judge — in one paragraph.** This is a pre-existing open-source ERP. Per the rules,
+> please evaluate **only the work added during the Submission Period**: the WebMCP layer in
+> `apps/web/src/webmcp/` (tools, live co-edited drafts, human approval gate, dynamic role-scoped
+> registry, agent activity panel), the English internationalization, the demo dataset script and
+> the live deployment. The ERP itself — inventory, double-entry accounting, e-invoicing, VAT
+> filing, HR/payroll and its test suite — predates the challenge and is *not* submitted for
+> scoring; it is the stage the WebMCP work performs on, which is why the demo feels like a real
+> product rather than a toy. Verification commands and commit references are in the
+> "Prior work vs. new work" section below.
+
 This document exists for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) judges and
 satisfies the rule that pre-existing projects must *"provide clear documentation distinguishing
 prior work from new work, including evidence that it was meaningfully extended with WebMCP
