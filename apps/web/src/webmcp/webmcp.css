@@ -28,6 +28,7 @@
   color: var(--amber);
   white-space: nowrap;
 }
+.wm-tag-ok { background: var(--green-tint); color: var(--green); }
 .wm-draft-grid {
   display: grid;
   grid-template-columns: auto 1fr;

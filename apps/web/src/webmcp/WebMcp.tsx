@@ -50,7 +50,7 @@ export function WebMcp({ page }: { page: string }) {
     <>
       <DraftCard />
       <ApprovalCard />
-      <ActivityPanel supported={hasWebMcp()} />
+      <ActivityPanel supported={hasWebMcp()} toolCount={window.webmcp?.list().length ?? 0} />
     </>
   );
 }
@@ -176,20 +176,29 @@ function ApprovalCard() {
   );
 }
 
-function ActivityPanel({ supported }: { supported: boolean }) {
+/**
+ * 永遠顯示（登入後）：狀態列就是診斷工具——評審與我們都能一眼看到
+ * 「這個瀏覽器有沒有 WebMCP、註冊了幾個工具」，不用開 DevTools。
+ */
+function ActivityPanel({ supported, toolCount }: { supported: boolean; toolCount: number }) {
   const t = useT();
   const list = useSyncExternalStore(subscribeActivities, getActivities);
-  if (!supported && list.length === 0) return null;
   return (
     <div className="wm-activity">
       <div className="wm-activity-head">
         <Bot size={14} />
         <span>{t("Agent 活動")}</span>
-        {!supported && <span className="wm-tag">{t("此瀏覽器不支援 WebMCP")}</span>}
+        {supported ? (
+          <span className="wm-tag wm-tag-ok">WebMCP ready · {toolCount} tools</span>
+        ) : (
+          <span className="wm-tag">{t("此瀏覽器不支援 WebMCP")}</span>
+        )}
       </div>
       {list.length === 0 ? (
         <div className="wm-hint" style={{ padding: "6px 10px" }}>
-          {t("等待 agent 連線——工具已依你的角色註冊完成。")}
+          {supported
+            ? t("等待 agent 連線——工具已依你的角色註冊完成。")
+            : t("需要支援 WebMCP 的瀏覽器（ChatGPT 桌面版內建瀏覽器，或 Chrome 146+ 開啟 WebMCP flag）。")}
         </div>
       ) : (
         <ul>

@@ -22,6 +22,8 @@ export const WebMcp: Dictionary = {
     "The agent can only draft — without this button, nothing enters the books.",
   "Agent 活動": "Agent activity",
   "此瀏覽器不支援 WebMCP": "This browser has no WebMCP support",
+  "需要支援 WebMCP 的瀏覽器（ChatGPT 桌面版內建瀏覽器，或 Chrome 146+ 開啟 WebMCP flag）。":
+    "Needs a WebMCP-capable browser (the ChatGPT desktop app's built-in browser, or Chrome 146+ with the WebMCP flag).",
   "等待 agent 連線——工具已依你的角色註冊完成。":
     "Waiting for an agent — tools are registered for your role.",
 };
