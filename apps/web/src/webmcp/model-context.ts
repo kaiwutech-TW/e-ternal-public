@@ -35,10 +35,23 @@ declare global {
   interface Navigator {
     modelContext?: ModelContextLike;
   }
+  interface Document {
+    modelContext?: ModelContextLike;
+  }
 }
 
-export const hasWebMcp = (): boolean =>
-  typeof navigator !== "undefined" && !!navigator.modelContext;
+/**
+ * 兩個入口都認：ChatGPT 桌面版內建瀏覽器掛在 `document.modelContext`（OpenAI 官方文件的寫法），
+ * Chrome 146+ 的 flag 掛在 `navigator.modelContext`（W3C 草案／Chrome 實作）。
+ * 只認其中一個，就會在另一邊「明明有 API 卻永遠沒工具」——2026-08-29 在 ChatGPT 裡踩到的就是這個。
+ */
+export function getModelContext(): ModelContextLike | undefined {
+  if (typeof document !== "undefined" && document.modelContext) return document.modelContext;
+  if (typeof navigator !== "undefined" && navigator.modelContext) return navigator.modelContext;
+  return undefined;
+}
+
+export const hasWebMcp = (): boolean => !!getModelContext();
 
 /**
  * 常駐的入口工具：不需登入、唯讀。解決「agent 在頁面載入瞬間掃工具、那時還沒登入所以是空的」——
@@ -74,7 +87,7 @@ const controllers = new Map<string, AbortController>();
  * 有 provideContext（原子替換）就用它；否則退回逐名 diff（先移除、再新增）。
  */
 export function syncTools(tools: WebMcpTool[]): void {
-  const mc = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
+  const mc = getModelContext();
   // describe_site 永遠在：頁面載入那一刻就有工具可掃（登入前也是），agent 才知道這站是什麼、登入後會有什麼
   const next = new Map([SITE_TOOL, ...tools].map((t) => [t.name, t]));
   if (!mc) {

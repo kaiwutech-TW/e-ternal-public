@@ -37,8 +37,14 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** 每個工具都包一層：進出都寫活動紀錄，錯誤轉成文字回給 agent（不炸頁面） */
 function withLog(tool: WebMcpTool): WebMcpTool {
+  // OpenAI 文件的慣例：inputSchema 收斂（additionalProperties: false），agent 不會塞沒定義的參數
+  const inputSchema =
+    tool.inputSchema && tool.inputSchema["type"] === "object" && !("additionalProperties" in tool.inputSchema)
+      ? { ...tool.inputSchema, additionalProperties: false }
+      : tool.inputSchema;
   return {
     ...tool,
+    ...(inputSchema ? { inputSchema } : {}),
     async execute(args): Promise<WebMcpToolResult> {
       const id = logActivity({
         actor: "agent",
