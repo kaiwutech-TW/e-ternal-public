@@ -9,7 +9,7 @@
  * 瀏覽器沒有 WebMCP 時：工具註冊靜默略過，但 UI 照常可用（人自己也能用草稿卡）。
  */
 import { X, Bot, User as UserIcon, Check } from "lucide-react";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PageKey } from "@tw-erp/core";
 import { useAuth } from "../auth.ts";
 import { useT } from "../i18n.ts";
@@ -32,16 +32,18 @@ import "./webmcp.css";
 export function WebMcp({ page }: { page: string }) {
   const user = useAuth();
   const nav = useNav();
+  // 註冊發生在 effect（render 之後），工具數要在同步完成後再讀，否則首屏永遠是 0
+  const [toolCount, setToolCount] = useState(0);
 
   // 動態註冊：角色或頁面一變就整組重算。unmount（登出）→ 清空工具。
   useEffect(() => {
-    syncTools(
-      buildTools({
-        role: user.role,
-        getPage: () => page,
-        navigate: (k: PageKey) => nav(k),
-      }),
-    );
+    const tools = buildTools({
+      role: user.role,
+      getPage: () => page,
+      navigate: (k: PageKey) => nav(k),
+    });
+    syncTools(tools);
+    setToolCount(tools.length);
     return clearTools;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.role, page]);
@@ -50,7 +52,7 @@ export function WebMcp({ page }: { page: string }) {
     <>
       <DraftCard />
       <ApprovalCard />
-      <ActivityPanel supported={hasWebMcp()} toolCount={window.webmcp?.list().length ?? 0} />
+      <ActivityPanel supported={hasWebMcp()} toolCount={toolCount} />
     </>
   );
 }
