@@ -163,9 +163,9 @@ async function main() {
   });
   console.log("✓ 1 open order, partially shipped");
 
-  // 8. 評審帳號（gm：看得到儀表板與報表，動不了系統設定）
-  await post("/users", { username: JUDGE_USER, displayName: "Guest Judge", password: JUDGE_PASS, role: "gm" });
-  console.log(`✓ judge account "${JUDGE_USER}" (role: gm)`);
+  // 8. 評審帳號（finance：看得到全部頁面與報表、可開報價；gm 在後端一律唯讀，submit_draft 會 403）
+  await post("/users", { username: JUDGE_USER, displayName: "Guest Judge", password: JUDGE_PASS, role: "finance" });
+  console.log(`✓ judge account "${JUDGE_USER}" (role: finance)`);
 
   console.log(`
 Done. Demo dataset ready at ${BASE}
