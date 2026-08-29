@@ -9,13 +9,14 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "build:vercel": "pnpm --filter @tw-erp/web build && node scripts/build-vercel-fn.mjs"
+    "build:vercel": "pnpm --filter @tw-erp/web build && node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "@tw-erp/api": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.6.0",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@hono/node-server": "^1.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

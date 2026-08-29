@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.0
+        version: 1.19.14(hono@4.12.31)
       '@tw-erp/api':
         specifier: workspace:*
         version: link:apps/api
