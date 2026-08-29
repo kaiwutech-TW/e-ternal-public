@@ -40,6 +40,30 @@ declare global {
 export const hasWebMcp = (): boolean =>
   typeof navigator !== "undefined" && !!navigator.modelContext;
 
+/**
+ * 常駐的入口工具：不需登入、唯讀。解決「agent 在頁面載入瞬間掃工具、那時還沒登入所以是空的」——
+ * 任何時間點掃都至少看得到這一個，而它會告訴 agent 登入後有哪些工具。
+ */
+const SITE_TOOL: WebMcpTool = {
+  name: "describe_site",
+  description:
+    "Describe this site (E-ternal, an ERP for Taiwanese SMEs) and list the WebMCP tools that become available once the user signs in. Call this first if you see no other tools; tools are registered dynamically by role after sign-in.",
+  annotations: { readOnlyHint: true },
+  inputSchema: { type: "object", properties: {} },
+  async execute() {
+    return textResult({
+      site: "E-ternal — open-source ERP for Taiwanese SMEs (quotes/orders, accounting, e-invoicing, VAT, HR)",
+      signedIn: registered.size > 1,
+      registeredNow: [...registered.keys()],
+      afterSignIn: [
+        "get_current_view", "navigate_to", "search_partners", "search_products", "get_dashboard_summary",
+        "query_report", "list_documents", "draft_quote", "update_draft_field", "submit_draft", "discard_draft",
+      ],
+      note: "Writes only ever produce an on-screen draft; submit_draft asks the human to approve. If the user is not signed in, ask them to sign in on this page first.",
+    });
+  },
+};
+
 /** 目前已註冊的工具（含各自的 AbortController——abort 就是註銷） */
 let registered = new Map<string, WebMcpTool>();
 const controllers = new Map<string, AbortController>();
@@ -51,7 +75,8 @@ const controllers = new Map<string, AbortController>();
  */
 export function syncTools(tools: WebMcpTool[]): void {
   const mc = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
-  const next = new Map(tools.map((t) => [t.name, t]));
+  // describe_site 永遠在：頁面載入那一刻就有工具可掃（登入前也是），agent 才知道這站是什麼、登入後會有什麼
+  const next = new Map([SITE_TOOL, ...tools].map((t) => [t.name, t]));
   if (!mc) {
     // 不支援 WebMCP：仍維護 registered，讓 window.webmcp 測試台可用
     registered = next;
@@ -99,6 +124,8 @@ export function clearTools(): void {
   syncTools([]);
 }
 
+export const registeredCount = (): number => registered.size;
+
 /**
  * Console 測試台：瀏覽器不支援 WebMCP 時也能手動驗證工具
  * （`webmcp.list()`／`await webmcp.execute("draft_quote", {...})`）。
@@ -135,3 +162,7 @@ export function textResult(value: unknown): WebMcpToolResult {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 1);
   return { content: [{ type: "text", text }] };
 }
+
+
+// 模組載入即註冊（bundle 執行時、React 尚未掛載）：頁面第一毫秒就有工具可被發現
+if (typeof window !== "undefined") syncTools([]);

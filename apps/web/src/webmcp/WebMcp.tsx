@@ -25,7 +25,7 @@ import {
   subscribeApproval,
   subscribeDraft,
 } from "./bus.ts";
-import { clearTools, hasWebMcp, syncTools } from "./model-context.ts";
+import { clearTools, hasWebMcp, registeredCount, syncTools } from "./model-context.ts";
 import { buildTools } from "./tools.ts";
 import "./webmcp.css";
 
@@ -43,7 +43,7 @@ export function WebMcp({ page }: { page: string }) {
       navigate: (k: PageKey) => nav(k),
     });
     syncTools(tools);
-    setToolCount(tools.length);
+    setToolCount(registeredCount());
     return clearTools;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.role, page]);
