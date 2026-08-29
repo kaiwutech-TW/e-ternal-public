@@ -79,9 +79,10 @@ scripts/demo-seed.mjs demo dataset via public API (idempotent)
 
 ## Try it
 
-- **Live demo:** https://et-demo.kaiwu.com.tw — sign in as `judge` (password in the Devpost
-  submission). HTTPS, as WebMCP is SecureContext-only. Data resets are manual; feel free to
-  create drafts and quotes.
+- **Live demo:** https://et-demo.kaiwu.com.tw — HTTPS, as WebMCP is SecureContext-only.
+  Data resets are manual; feel free to create drafts and quotes.
+  - **Judge account:** username `judge` / password `webmcp-judge` (role: general manager —
+    sees every page and every WebMCP tool)
 - **Source:** https://github.com/kaiwutech-TW/e-ternal-public (LGPL-3.0-or-later)
 - **Agent browsers:** ChatGPT's in-app browser supports WebMCP out of the box; Chrome 146+ works
   with the WebMCP experimental flag enabled.
