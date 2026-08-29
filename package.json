@@ -4,10 +4,23 @@
   "license": "LGPL-3.0-or-later",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "build:vercel": "pnpm --filter @tw-erp/web build && node scripts/build-vercel-fn.mjs"
+  },
+  "dependencies": {
+    "@tw-erp/api": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.6.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.25.0"
   }
 }

@@ -7,3 +7,6 @@ coverage/
 !.env.example
 .DS_Store
 backups/
+.vercel
+supabase/.temp/
+api/
