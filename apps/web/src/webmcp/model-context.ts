@@ -25,7 +25,8 @@ export interface WebMcpTool {
 }
 
 interface ModelContextLike {
-  registerTool(tool: WebMcpTool): unknown;
+  /** 規格：第二個參數帶 AbortSignal，abort 即註銷（Chrome 151 實測有效；它沒有 unregisterTool） */
+  registerTool(tool: WebMcpTool, options?: { signal?: AbortSignal }): unknown;
   unregisterTool?(name: string): void;
   provideContext?(ctx: { tools: WebMcpTool[] }): void;
 }
@@ -39,8 +40,9 @@ declare global {
 export const hasWebMcp = (): boolean =>
   typeof navigator !== "undefined" && !!navigator.modelContext;
 
-/** 目前已註冊的工具名（unregisterTool 需要逐名移除時用） */
+/** 目前已註冊的工具（含各自的 AbortController——abort 就是註銷） */
 let registered = new Map<string, WebMcpTool>();
+const controllers = new Map<string, AbortController>();
 
 /**
  * 把「目前應該存在的工具集」整組同步給瀏覽器。
@@ -62,19 +64,29 @@ export function syncTools(tools: WebMcpTool[]): void {
     return;
   }
 
+  // 註銷：優先 abort 註冊時附的 signal（規格路徑，Chrome 151 實測有效）；
+  // 沒有 controller 的（舊路徑）才退回 unregisterTool——它在 Chrome 151 不存在，try/catch 兜住
   for (const name of registered.keys()) {
     if (!next.has(name)) {
-      try {
-        mc.unregisterTool?.(name);
-      } catch {
-        /* 已不存在就算了 */
+      const ac = controllers.get(name);
+      if (ac) {
+        ac.abort();
+        controllers.delete(name);
+      } else {
+        try {
+          mc.unregisterTool?.(name);
+        } catch {
+          /* 已不存在就算了 */
+        }
       }
     }
   }
   for (const [name, tool] of next) {
     if (!registered.has(name)) {
+      const ac = new AbortController();
       try {
-        mc.registerTool(tool);
+        mc.registerTool(tool, { signal: ac.signal });
+        controllers.set(name, ac);
       } catch {
         /* 重複註冊等錯誤不擋網站本體 */
       }
