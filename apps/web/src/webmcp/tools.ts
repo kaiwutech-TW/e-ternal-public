@@ -12,6 +12,7 @@
  */
 import { PAGE_INFO, canAccessPage, type PageKey, type Role } from "@tw-erp/core";
 import { api } from "../api.ts";
+import { notifyDataChanged } from "../data-events.ts";
 import {
   draftSubtotal,
   editDraft,
@@ -562,6 +563,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
         });
         recordSubmission(draft.id, created);
         setDraft(null);
+        notifyDataChanged(); // 頁面上的報價列表立即刷新——人簽核完抬頭就看得到那張單
         logActivity({ actor: "human", tool: "submit_draft", summary: "approved ✓", status: "ok" });
         return textResult({ created, note: "Quote created after human approval." });
       },

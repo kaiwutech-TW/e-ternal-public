@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api.ts";
+import { subscribeDataChanged } from "./data-events.ts";
 
 /** path 傳 null＝這個畫面此刻不需要這筆資料（條件式取數），不發請求、data 維持 null */
 export function useFetch<T>(path: string | null): { data: T | null; reload: () => void; error: string | null } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  // 畫面外的寫入（WebMCP 簽核建立單據）完成 → 重新取數，列表不用手動查詢
+  useEffect(() => subscribeDataChanged(() => setTick((t) => t + 1)), []);
   useEffect(() => {
     if (path === null) return;
     let alive = true;
@@ -35,6 +38,8 @@ export function useListFetch<T>(path: string | null): {
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  // 同 useFetch：畫面外寫入完成 → reload
+  useEffect(() => subscribeDataChanged(() => setTick((t) => t + 1)), []);
   useEffect(() => {
     if (path === null) return;
     let alive = true;
