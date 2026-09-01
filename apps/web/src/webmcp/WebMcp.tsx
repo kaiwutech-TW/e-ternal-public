@@ -34,19 +34,27 @@ export function WebMcp({ page }: { page: string }) {
   const nav = useNav();
   // 註冊發生在 effect（render 之後），工具數要在同步完成後再讀，否則首屏永遠是 0
   const [toolCount, setToolCount] = useState(0);
+  // 草稿行數改變 → update_draft_field 的 lineIndex 上限（inputSchema）跟著變 →
+  // 契約指紋不同，syncTools 只會重新註冊那一顆工具（schema 是活的，agent 永遠拿到當下的邊界）
+  const draftForSchema = useSyncExternalStore(subscribeDraft, getDraft);
+  const draftLines = draftForSchema ? draftForSchema.lines.length : null;
 
-  // 動態註冊：角色或頁面一變就整組重算。unmount（登出）→ 清空工具。
+  // 動態註冊：角色、頁面或草稿形狀一變就整組重算。unmount（登出）→ 清空工具。
   useEffect(() => {
     const tools = buildTools({
       role: user.role,
       getPage: () => page,
       navigate: (k: PageKey) => nav(k),
+      draftLines,
     });
     syncTools(tools);
     setToolCount(registeredCount());
-    return clearTools;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.role, page]);
+  }, [user.role, page, draftLines]);
+
+  // 清空只在 unmount（登出）：換頁/草稿變化時 syncTools 自己會 diff（契約沒變的工具不動），
+  // 若放在上面 effect 的 cleanup，每次換頁都會「全部註銷再全部重註冊」，agent 會看到工具閃爍
+  useEffect(() => clearTools, []);
 
   return (
     <>

@@ -15,14 +15,20 @@ import { api } from "../api.ts";
 import {
   draftSubtotal,
   editDraft,
+  getApproval,
   getDraft,
   logActivity,
+  newDraftId,
+  recentSubmission,
+  recordSubmission,
   requestApproval,
   resolveActivity,
   setDraft,
   type QuoteDraft,
 } from "./bus.ts";
 import { textResult, type WebMcpTool, type WebMcpToolResult } from "./model-context.ts";
+import { fenceUntrusted } from "./quarantine.ts";
+import { validateArgs } from "./validate.ts";
 import type { Partner, Product } from "../types.ts";
 
 export interface ToolDeps {
@@ -31,11 +37,43 @@ export interface ToolDeps {
   getPage: () => string;
   /** 導航（NavContext 的 setPage；由 WebMcp.tsx 掛進來） */
   navigate: (page: PageKey) => void;
+  /** 開著的草稿行數（null＝沒有草稿）：update_draft_field 的 lineIndex 上限是「活的」 */
+  draftLines: number | null;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** 每個工具都包一層：進出都寫活動紀錄，錯誤轉成文字回給 agent（不炸頁面） */
+/**
+ * 拒絕（policy refusal）與錯誤（malformed input）是兩件事，但對 agent 的回應同一種形狀：
+ * `{ok:false, error:{code,message}, hint}`——hint 永遠告訴 agent「下一步合法的動作是什麼」，
+ * 讓它自我修正，而不是瞎重試。
+ */
+class ToolRefusal extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public hint: string,
+  ) {
+    super(message);
+  }
+}
+const refuse = (code: string, message: string, hint: string): never => {
+  throw new ToolRefusal(code, message, hint);
+};
+
+/**
+ * 輸出預算：Chrome 的指引是 ~1500 字，但財務報表 JSON 天生比較胖；
+ * 取 4000——仍然有界（agent 的 context 不會被灌爆），截尾必留標注（不無聲吞掉）。
+ */
+const OUTPUT_BUDGET = 4000;
+
+/**
+ * 每個工具都包一層（工具無法退出這一層——這正是重點）：
+ * 1. 進門先驗參數——瀏覽器**不會**拿 inputSchema 驗過才呼叫，宣告只是廣告，驗證在這裡
+ * 2. 進出都寫活動紀錄（人看得到 agent 在做什麼）
+ * 3. untrustedContentHint 的輸出整段過隔離圍欄（quarantine.ts）
+ * 4. 輸出超預算截尾標注；錯誤轉成結構化 envelope 回給 agent（不炸頁面）
+ */
 function withLog(tool: WebMcpTool): WebMcpTool {
   // OpenAI 文件的慣例：inputSchema 收斂（additionalProperties: false），agent 不會塞沒定義的參數
   const inputSchema =
@@ -52,14 +90,30 @@ function withLog(tool: WebMcpTool): WebMcpTool {
         summary: summarizeArgs(args),
         status: "pending",
       });
+      const fail = (code: string, message: string, hint: string): WebMcpToolResult => {
+        resolveActivity(id, "error", `${code}: ${message}`);
+        return textResult({ ok: false, error: { code, message }, hint });
+      };
+      const problems = validateArgs(inputSchema, args);
+      if (problems.length) {
+        return fail(
+          "invalid_input",
+          problems.map((p) => `${p.path} ${p.message}`).join("; "),
+          "Correct the arguments to match the declared inputSchema and call the tool again.",
+        );
+      }
       try {
         const out = await tool.execute(args);
         resolveActivity(id, "ok");
-        return out;
+        let text = out.content.map((c) => c.text).join("\n");
+        if (text.length > OUTPUT_BUDGET)
+          text = `${text.slice(0, OUTPUT_BUDGET)}\n[trimmed ${text.length - OUTPUT_BUDGET} chars to fit the tool-output budget — ask a narrower question]`;
+        if (tool.annotations?.untrustedContentHint) text = fenceUntrusted(text);
+        return { content: [{ type: "text", text }] };
       } catch (e) {
+        if (e instanceof ToolRefusal) return fail(e.code, e.message, e.hint);
         const msg = (e as Error).message || String(e);
-        resolveActivity(id, "error", msg);
-        return textResult(`Error: ${msg}`);
+        return fail("tool_failed", msg, "The message above states what was wrong — fix that and retry once; if it persists, tell the user.");
       }
     },
   };
@@ -110,7 +164,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
     name: "get_current_view",
     description:
       "Get what the user is currently looking at: the active page of this ERP, its purpose, and whether a co-edited quote draft is open. Call this first to share context with the user.",
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     async execute() {
       const page = deps.getPage();
       const info = (PAGE_INFO as Record<string, { label: string; desc: string }>)[page];
@@ -155,7 +209,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       name: "search_partners",
       description:
         "Search business partners (customers/suppliers) by name or tax ID substring. Returns id, name, taxId, roles. Use the id in draft_quote.",
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       inputSchema: {
         type: "object",
         properties: { query: { type: "string", description: "Name or tax-ID substring; empty = list all" } },
@@ -183,7 +237,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       name: "search_products",
       description:
         "Search the product master by name/SKU substring. Returns id, sku, name, unit, listPrice (untaxed, null = unpriced), isService.",
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       inputSchema: {
         type: "object",
         properties: { query: { type: "string", description: "Name or SKU substring; empty = list all" } },
@@ -214,7 +268,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       name: "get_dashboard_summary",
       description:
         "Business dashboard as of a date: monthly revenue/gross profit, cash position, AR/AP, open orders, pending approvals, overdue receivables. Requires manager/finance role (the server enforces ACL).",
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       inputSchema: {
         type: "object",
         properties: { asOf: { type: "string", description: "YYYY-MM-DD; default today" } },
@@ -230,7 +284,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       name: "query_report",
       description:
         "Run a financial report. income_statement/cash_flow need from+to; balance_sheet/ar_aging need asOf. Amounts are in integer TWD.",
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       inputSchema: {
         type: "object",
         properties: {
@@ -266,7 +320,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       name: "list_documents",
       description:
         "List sales documents: quotes (status open/won/lost) or orders (with shipping progress). Optionally filter by status.",
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       inputSchema: {
         type: "object",
         properties: {
@@ -289,6 +343,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
 
     tools.push({
       name: "draft_quote",
+      annotations: { untrustedContentHint: true },
       description:
         "Start a sales-quote DRAFT that you and the user edit together on screen. Fills a visible draft card field by field; does NOT create anything in the ERP. Resolve customer/products via search tools first if unsure. Prices are untaxed integer TWD; tax is computed by the system at submission per the company's tax parameters. After drafting, ask the user to review, then call submit_draft.",
       inputSchema: {
@@ -341,6 +396,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
           },
         );
         const draft: QuoteDraft = {
+          id: newDraftId(),
           partnerId: partner.id,
           partnerName: partner.name,
           quoteDate: String(a["quoteDate"] ?? today()),
@@ -363,10 +419,16 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
       },
     });
 
+    // lineIndex 的上限是「活的」：草稿行數變 → schema 變 → 契約指紋變 → 只有這顆工具重新註冊。
+    // 越界的行號因此在 schema 層就是不合法——agent 連「刪掉第 7 行」都說不出口，而不是說了被拒。
+    const lineMax = deps.draftLines !== null && deps.draftLines > 0 ? deps.draftLines - 1 : undefined;
     tools.push({
       name: "update_draft_field",
       description:
-        "Edit one field of the open quote draft (the user sees the change highlighted live, and may also edit fields themselves). Ops: set_date/set_expected_date/set_memo take value; set_line_qty/set_line_price take lineIndex(0-based)+qty|unitPrice; add_line takes product+qty(+unitPrice); remove_line takes lineIndex.",
+        `Edit one field of the open quote draft (the user sees the change highlighted live, and may also edit fields themselves). Ops: set_date/set_expected_date/set_memo take value; set_line_qty/set_line_price take lineIndex(0-based)+qty|unitPrice; add_line takes product+qty(+unitPrice); remove_line takes lineIndex.` +
+        (deps.draftLines === null
+          ? " No draft is open right now — call draft_quote first."
+          : ` The open draft currently has ${deps.draftLines} line(s).`),
       inputSchema: {
         type: "object",
         properties: {
@@ -383,7 +445,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
             ],
           },
           value: { type: "string" },
-          lineIndex: { type: "integer", minimum: 0 },
+          lineIndex: { type: "integer", minimum: 0, ...(lineMax !== undefined ? { maximum: lineMax } : {}) },
           product: { type: "string" },
           qty: { type: "number", exclusiveMinimum: 0 },
           unitPrice: { type: "number", minimum: 0 },
@@ -454,18 +516,37 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
     tools.push({
       name: "submit_draft",
       description:
-        "Ask the user to approve the open quote draft. This is the ONLY way any draft reaches the ERP: an approval card pops up and the human decides. If approved, the quote is created and the draft closes; if declined, the draft stays open for further edits. There are deliberately no tools for posting, approving or voiding documents.",
+        "Ask the user to approve the open quote draft. This is the ONLY way any draft reaches the ERP: an approval card pops up and the human decides. If approved, the quote is created and the draft closes; if declined, the draft stays open for further edits. Safe to retry after a timeout — a submission that already succeeded is replayed, not repeated. There are deliberately no tools for posting, approving or voiding documents.",
+      annotations: { idempotentHint: true },
       inputSchema: { type: "object", properties: {} },
       async execute() {
         const d = getDraft();
-        if (!d) throw new Error("No open draft. Call draft_quote first.");
-        if (!d.lines.length) throw new Error("Draft has no lines.");
+        if (!d) {
+          // 冪等回放：agent 因 timeout 重試、但那次其實已經成功（草稿因此關了）——
+          // 回放結果而不是叫它重新起草（那條路的終點是重複的報價單）
+          const done = recentSubmission();
+          if (done)
+            return textResult({
+              ok: true,
+              alreadyCreated: done.created,
+              note: "That draft was ALREADY submitted and approved moments ago — this is the result. Do not draft it again.",
+            });
+          refuse("no_draft", "No open draft.", "Call draft_quote first to start one.");
+        }
+        if (!d!.lines.length) refuse("empty_draft", "Draft has no lines.", "Add at least one line with update_draft_field (op add_line).");
+        if (getApproval())
+          refuse(
+            "approval_pending",
+            "An approval card is already on screen waiting for the human.",
+            "Do not resubmit. Wait for the user's decision, then check the draft state with get_current_view.",
+          );
+        const draft = d!;
         // key 用中文原句：ApprovalCard 端會過 t()，中英文介面各自正確
         const approved = await requestApproval("要建立這張報價單嗎？", [
-          ["客戶", d.partnerName],
-          ["報價日", d.quoteDate],
-          ["明細筆數", String(d.lines.length)],
-          ["未稅合計", `${draftSubtotal(d).toLocaleString()} TWD`],
+          ["客戶", draft.partnerName],
+          ["報價日", draft.quoteDate],
+          ["明細筆數", String(draft.lines.length)],
+          ["未稅合計", `${draftSubtotal(draft).toLocaleString()} TWD`],
           ["稅額", "由系統於建立時計算"],
         ]);
         if (!approved) {
@@ -473,12 +554,13 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
           return textResult("The user DECLINED. The draft remains open — ask what to change.");
         }
         const created = await api.post("/quotes", {
-          partnerId: d.partnerId,
-          quoteDate: d.quoteDate,
-          ...(d.expectedDate ? { expectedDate: d.expectedDate } : {}),
-          ...(d.memo ? { memo: d.memo } : {}),
-          lines: d.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice })),
+          partnerId: draft.partnerId,
+          quoteDate: draft.quoteDate,
+          ...(draft.expectedDate ? { expectedDate: draft.expectedDate } : {}),
+          ...(draft.memo ? { memo: draft.memo } : {}),
+          lines: draft.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice })),
         });
+        recordSubmission(draft.id, created);
         setDraft(null);
         logActivity({ actor: "human", tool: "submit_draft", summary: "approved ✓", status: "ok" });
         return textResult({ created, note: "Quote created after human approval." });
@@ -488,6 +570,7 @@ export function buildTools(deps: ToolDeps): WebMcpTool[] {
     tools.push({
       name: "discard_draft",
       description: "Close the open quote draft without creating anything.",
+      annotations: { destructiveHint: true, idempotentHint: true },
       inputSchema: { type: "object", properties: {} },
       async execute() {
         if (!getDraft()) return textResult("No open draft.");

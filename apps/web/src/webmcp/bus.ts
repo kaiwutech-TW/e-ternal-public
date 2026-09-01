@@ -57,6 +57,8 @@ export interface QuoteDraftLine {
 }
 
 export interface QuoteDraft {
+  /** 草稿身分證：submit 冪等（重試不重建）與「剛剛那張建好了嗎」都靠它對號 */
+  id: string;
   partnerId: number;
   partnerName: string;
   quoteDate: string;
@@ -94,6 +96,30 @@ export function editDraft(key: string, actor: "agent" | "human", mutate: (d: Quo
 /** 未稅合計（稅額刻意不算——零斷言紀律：稅率屬於後端稅法參數） */
 export const draftSubtotal = (d: QuoteDraft): number =>
   d.lines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+
+export const newDraftId = (): string => `d_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+// ---------- 送出紀錄（冪等）：agent 因 timeout 重試 submit 時，回放結果而不是再做一次 ----------
+
+interface SubmissionRecord {
+  draftId: string;
+  at: number;
+  /** 已建立單據的摘要（回放給重試的 agent 看） */
+  created: unknown;
+}
+
+let lastSubmission: SubmissionRecord | null = null;
+
+export function recordSubmission(draftId: string, created: unknown): void {
+  lastSubmission = { draftId, at: Date.now(), created };
+}
+
+/** 最近 10 分鐘內的送出紀錄（更久以前的重試已不可能是「同一次」的重試） */
+export function recentSubmission(draftId?: string): SubmissionRecord | null {
+  if (!lastSubmission || Date.now() - lastSubmission.at > 10 * 60_000) return null;
+  if (draftId && lastSubmission.draftId !== draftId) return null;
+  return lastSubmission;
+}
 
 // ---------- 簽核請求（結構性紅線：唯一的送出通道） ----------
 

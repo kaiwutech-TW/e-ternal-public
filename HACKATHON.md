@@ -60,6 +60,25 @@ state, same guardrails* — together.
    explicit candidate lists on ambiguity instead of guessing.
 5. **Visible agency.** Every tool call is streamed into an on-screen "Agent activity" panel,
    so the human always sees what their agent just did.
+6. **Hardened tool surface** (every claim below is tested in `apps/web/test/webmcp-hardening.test.ts`):
+   - *In-handler validation.* The browser does **not** validate arguments against `inputSchema`
+     before calling `execute` — so a central wrapper (which no tool can opt out of) validates
+     every call and returns a structured `{ok:false, error:{code}, hint}` envelope where the
+     `hint` names the agent's next legal move, instead of letting it retry blind.
+   - *Live schemas as boundaries.* `update_draft_field`'s `lineIndex` carries a `maximum` equal
+     to the open draft's last line; the draft changing shape re-registers the tool with the new
+     contract. An out-of-range edit is unrepresentable, not merely refused.
+   - *Untrusted-content quarantine.* Tools whose results carry third-party text (customer names,
+     memos) declare `untrustedContentHint` and their entire output passes through a fence:
+     NFKC normalization, invisible-character stripping by Unicode property (not blocklist),
+     unforgeable `⟦UNTRUSTED⟧` markers, and a standing notice that fenced content is data, never
+     instructions.
+   - *Idempotent submission.* A `submit_draft` retried after a timeout replays the already-created
+     quote instead of re-drafting it; while the approval card is on screen a second submit returns
+     `approval_pending` rather than being misread as a human decline.
+   - *Honest annotations + bounded output.* `readOnlyHint` / `untrustedContentHint` /
+     `destructiveHint` / `idempotentHint` declared per tool; results are budget-capped with an
+     explicit trim marker.
 
 ## Architecture (all new files)
 
@@ -69,7 +88,10 @@ apps/web/src/webmcp/
                      dynamic sync (provideContext when available, register/unregister diff
                      otherwise), window.webmcp console test bench
   tools.ts           11 tools (English descriptions; JSON-Schema inputs; role-gated)
-  bus.ts             framework-free state bus: activity log, co-edited draft, approval requests
+  bus.ts             framework-free state bus: activity log, co-edited draft, approval requests,
+                     idempotent submission record
+  validate.ts        in-handler JSON-Schema validation (the browser does not validate for you)
+  quarantine.ts      untrusted-content fence: NFKC + Unicode-property invisible-strip + ⟦UNTRUSTED⟧
   WebMcp.tsx         React mount: dynamic registration effect + draft card + approval card
                      + activity panel (fully i18n'd, light/dark aware)
   webmcp.css         styles on the app's existing theme tokens
